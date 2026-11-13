@@ -2,7 +2,18 @@ import type { TaskEndOutcome, TaskStatus, TaskSummary } from "@warren/protocol";
 import { type RefObject, useMemo } from "react";
 import { useI18n } from "../context.tsx";
 import { formatAgo, type MessageKey, statusLabel } from "../i18n.ts";
-import { Alert, Check, Close, Logo, Message, Pause, Plus, Search, Shield } from "../icons.tsx";
+import {
+  Alert,
+  Check,
+  Close,
+  Inbox,
+  Logo,
+  Message,
+  Pause,
+  Plus,
+  Search,
+  Shield,
+} from "../icons.tsx";
 import { displayTitle, groupTasks } from "../model.ts";
 
 const GROUPS: { key: keyof ReturnType<typeof groupTasks>; label: MessageKey }[] = [
@@ -24,6 +35,8 @@ export function Sidebar(props: {
   onQuery(query: string): void;
   onSelect(id: string): void;
   onNew(): void;
+  onTriggers(): void;
+  showingTriggers: boolean;
 }) {
   const { t, lang, setLang } = useI18n();
   const filtered = useMemo(() => {
@@ -114,6 +127,14 @@ export function Sidebar(props: {
       </nav>
 
       <footer className="sidebar-foot">
+        <button
+          type="button"
+          className={`foot-link ${props.showingTriggers ? "on" : ""}`}
+          onClick={props.onTriggers}
+        >
+          <Inbox size={14} />
+          {t("triggers.open")}
+        </button>
         {props.sandbox && (
           <span className={`sandbox ${props.sandbox === "none" ? "off" : ""}`}>
             <Shield size={14} />

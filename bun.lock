@@ -27,6 +27,7 @@
       "name": "@warren/daemon",
       "version": "0.0.0",
       "dependencies": {
+        "@warren/connectors": "workspace:*",
         "@warren/core": "workspace:*",
         "@warren/model": "workspace:*",
         "@warren/protocol": "workspace:*",
@@ -63,6 +64,13 @@
       "dependencies": {
         "@warren/core": "workspace:*",
         "@warren/daemon": "workspace:*",
+        "@warren/protocol": "workspace:*",
+      },
+    },
+    "packages/connectors": {
+      "name": "@warren/connectors",
+      "version": "0.0.0",
+      "dependencies": {
         "@warren/protocol": "workspace:*",
       },
     },
@@ -200,6 +208,8 @@
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
 
     "@warren/cli": ["@warren/cli@workspace:apps/cli"],
+
+    "@warren/connectors": ["@warren/connectors@workspace:packages/connectors"],
 
     "@warren/core": ["@warren/core@workspace:packages/core"],
 

@@ -12,6 +12,7 @@
     "@warren/protocol": "workspace:*",
     "@warren/tools": "workspace:*",
     "hono": "^4.13.18",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "@warren/connectors": "workspace:*"
   }
 }

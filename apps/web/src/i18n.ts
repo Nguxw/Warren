@@ -18,6 +18,21 @@ const zh = {
   "app.sandbox": "沙箱已启用",
   "app.noSandbox": "未启用沙箱",
 
+  "triggers.open": "事件",
+  "triggers.title": "GitHub 事件",
+  "triggers.intro":
+    "Warren 从 GitHub 收到的事件，以及它的决定。处于“观察”模式的规则只记录它本会开始的工作；确认判断可靠后，再在配置中改为 auto。",
+  "triggers.none":
+    "还没有事件。在 ~/.warren/config.json 中配置 github 后，这里会出现提及、标签和 CI 失败。",
+  "decision.create": "已创建",
+  "decision.observe": "观察",
+  "decision.append": "已追加",
+  "decision.answer": "已回答",
+  "decision.ignore": "忽略",
+  "kind.comment": "评论",
+  "kind.issue_opened": "新 issue",
+  "kind.issue_labeled": "标签",
+  "kind.ci_failed": "CI 失败",
   "signin.title": "需要登录",
   "signin.body": "此页面需要守护进程的令牌。请在终端中打开：",
 
@@ -175,6 +190,21 @@ const en: Record<MessageKey, string> = {
   "app.sandbox": "Sandbox on",
   "app.noSandbox": "No sandbox",
 
+  "triggers.open": "Events",
+  "triggers.title": "GitHub events",
+  "triggers.intro":
+    "What Warren received from GitHub and what it decided. Rules in observe mode only record the work they would have started; switch them to auto once their judgement looks right.",
+  "triggers.none":
+    "No events yet. Configure github in ~/.warren/config.json and mentions, labels and CI failures appear here.",
+  "decision.create": "Created",
+  "decision.observe": "Observed",
+  "decision.append": "Appended",
+  "decision.answer": "Answered",
+  "decision.ignore": "Ignored",
+  "kind.comment": "comment",
+  "kind.issue_opened": "new issue",
+  "kind.issue_labeled": "label",
+  "kind.ci_failed": "CI failure",
   "signin.title": "Sign in needed",
   "signin.body": "This page needs the daemon's token. Open it from the terminal:",
 

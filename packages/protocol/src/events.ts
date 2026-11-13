@@ -60,6 +60,11 @@ export const TaskCreated = event(
     trigger: TriggerRef,
     /** Model role from the config (`main` when absent); the model actually used is in each response. */
     modelRole: z.string().optional(),
+    /**
+     * Conversations the task follows, such as `github:owner/repo#12`: later messages there reach
+     * the task, and its questions and result are posted back there.
+     */
+    follows: z.array(z.string()).optional(),
   }),
 );
 

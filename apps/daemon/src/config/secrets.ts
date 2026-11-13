@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
  * Lookup order: the process environment, then `~/.warren/credentials.env` (mode 0600, outside
  * any repository). Secret values never go into the event log, the database or tool processes.
  */
-export const SECRET_NAME = /^WARREN_[A-Z0-9_]+_(API_KEY|TOKEN)$/;
+export const SECRET_NAME = /^WARREN_[A-Z0-9_]+_(API_KEY|TOKEN|SECRET)$/;
 
 /** The secret the default models use. */
 export const OPENAI_KEY = "WARREN_OPENAI_API_KEY";

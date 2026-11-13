@@ -298,6 +298,109 @@ a.chip:hover {
   overflow-y: auto;
 }
 
+/* ------------------------------------------------------------ triggers */
+
+.foot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.foot-link:hover,
+.foot-link.on {
+  background: var(--hover);
+  color: var(--text);
+}
+.triggers-intro {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 680px;
+}
+.task-meta.triggers-counts {
+  margin-left: 0;
+}
+.decision {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.decision.create {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.decision.observe {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.decision.append,
+.decision.answer {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.trigger-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.trigger {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.trigger.decision-ignore {
+  background: transparent;
+}
+.trigger-body {
+  flex: 1;
+  min-width: 0;
+}
+.trigger-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+.trigger-line a {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+.trigger-line a:hover {
+  color: var(--accent);
+}
+.trigger-detail {
+  margin: 3px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ------------------------------------------------------------ status icon */
 
 .status-icon {
@@ -498,6 +601,8 @@ a.chip:hover {
   border-top: 1px solid var(--line);
 }
 .sandbox {
+  margin-left: auto;
+  margin-right: 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;

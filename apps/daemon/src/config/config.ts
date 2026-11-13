@@ -100,7 +100,44 @@ const ConfigFile = z.object({
   approvals: z.record(z.string(), z.enum(["required", "auto"])).optional(),
   /** Desktop notifications when a task needs you or finishes. */
   notifications: z.boolean().optional(),
+  github: z
+    .object({
+      /** How people address Warren in comments. */
+      handle: z.string().default("@warren"),
+      /** Warren's own GitHub account; found from the token when left out. */
+      botLogin: z.string().optional(),
+      /** People whose requests Warren takes. */
+      allowedActors: z.array(z.string()).default([]),
+      /** Reconcile poll interval. */
+      pollSeconds: z.number().int().min(30).default(120),
+      /** Local port for webhook deliveries (put a tunnel in front of it); off when absent. */
+      webhookPort: z.number().int().min(0).max(65535).optional(),
+      apiBase: z.url().optional(),
+      repos: z
+        .record(
+          z.string().regex(/^[\w.-]+\/[\w.-]+$/, "use owner/name"),
+          z.object({
+            /** The local clone tasks for this repository work from. */
+            path: z.string(),
+            label: z.string().default("warren"),
+            defaultBranch: z.string().default("main"),
+            network: z.boolean().default(false),
+            modelRole: z.string().optional(),
+            rules: z
+              .object({
+                mention: z.enum(["off", "observe", "auto"]).default("auto"),
+                label: z.enum(["off", "observe", "auto"]).default("auto"),
+                ciFailure: z.enum(["off", "observe", "auto"]).default("observe"),
+              })
+              .prefault({}),
+          }),
+        )
+        .default({}),
+    })
+    .optional(),
 });
+
+export type GitHubConfig = NonNullable<z.infer<typeof ConfigFile>["github"]>;
 
 export interface Config {
   models: Record<string, ModelConfig>;
@@ -110,6 +147,7 @@ export interface Config {
   tasks: { network: boolean };
   approvals: Record<string, "required" | "auto">;
   notifications: boolean;
+  github?: GitHubConfig;
 }
 
 export const DEFAULT_PORT = 7349;
@@ -120,7 +158,8 @@ export function loadConfig(file: string | undefined): Config {
   if (!parsed.success) {
     throw new Error(`invalid config ${file}:\n${z.prettifyError(parsed.error)}`);
   }
-  const { models, server, concurrency, sandbox, tasks, approvals, notifications } = parsed.data;
+  const { models, server, concurrency, sandbox, tasks, approvals, notifications, github } =
+    parsed.data;
   return {
     models: { ...DEFAULT_MODELS, ...models },
     server: { host: server?.host ?? "127.0.0.1", port: server?.port ?? DEFAULT_PORT },
@@ -129,5 +168,6 @@ export function loadConfig(file: string | undefined): Config {
     tasks: { network: tasks?.network ?? false },
     approvals: approvals ?? {},
     notifications: notifications ?? true,
+    ...(github && { github }),
   };
 }

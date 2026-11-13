@@ -20,7 +20,8 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 - `evals/` — chaos harness; the crash scenario lives in `@warren/core/testing` (`push-scenario.ts`) and is shared with `packages/core/tests/simulation.test.ts`.
 - `apps/daemon` is the composition root (`startDaemon`) and the only process that writes the database. `apps/cli` talks to it over HTTP using `daemon.json`.
 - `apps/web` — React UI bundled by Bun's HTML import and served by the daemon at `/`. View logic lives in pure functions (`model.ts`, `i18n.ts`) with tests. Every UI string goes through `i18n.ts` (Chinese default, English); never hard-code interface text.
-- Design docs: `docs/000`–`006`.
+- `packages/connectors` — sources of work (GitHub). Events from webhooks and reconcile polls share content-based `externalId`s; `Intake` dedupes, routes (`core/routing.ts`, pure) and applies in one SQLite transaction.
+- Design docs: `docs/000`–`007`.
 
 ## Rules that are expensive to break
 

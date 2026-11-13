@@ -8,7 +8,7 @@
 - **少打扰**：只在需要回答、需要审批、结果可用时通知你。
 - **有边界**：模型执行的命令跑在沙箱里，只能写自己的工作区，读不到凭证，网络按任务开关；对外动作由守护进程代为执行，可要求你审批。
 
-> 状态：开发中。M4 已完成：
+> 状态：开发中。M5 已完成：可以在 GitHub issue 里 @warren 派活，问题和结论会回复到 issue；CI 失败先只观察。此前的里程碑：
 >
 > - 中英双语 Web 界面：收件箱、实时时间线、轨迹回放、审批。
 > - 桌面应用（Tauri）与菜单栏图标，macOS 系统通知，launchd 开机常驻，单文件发布。
@@ -31,7 +31,8 @@ protocol    事件格式 · 对话格式 · API 契约               （所有�
 | `packages/core` | 状态折叠、Agent 循环、各接口定义；不做任何 IO |
 | `packages/model` | 模型适配器：OpenAI Responses、OpenAI 兼容（DeepSeek、Qwen、Ollama 等） |
 | `packages/tools` | 内置工具、Seatbelt 沙箱、特权工具（发布分支、开 PR） |
-| `apps/daemon` | 守护进程：Store、调度器、工作区、HTTP API |
+| `packages/connectors` | 连接器：GitHub（webhook、补漏轮询、回复） |
+| `apps/daemon` | 守护进程：Store、调度器、工作区、HTTP API、事件接入 |
 | `apps/cli` | `warren` 命令，以及 launchd 服务 |
 | `apps/web` | Web 界面（React，由 Bun 打包，中英双语） |
 | `apps/desktop` | 桌面外壳（Tauri v2）：原生窗口和菜单栏图标 |
@@ -69,6 +70,7 @@ warren follow <id>                    # 跟随一个任务
 warren answer <id> "<回答>"           # 回答任务的问题
 warren approve <id>                   # 批准任务等待的动作（如开 PR）
 warren deny <id> "<原因>"             # 拒绝，原因会交给任务
+warren triggers                       # GitHub 事件及 Warren 的决定
 warren doctor                         # 检查配置
 ```
 
@@ -116,6 +118,7 @@ chmod 600 ~/.warren/credentials.env
 - [004 测试与验证](docs/004-testing.md)
 - [005 安全边界](docs/005-security.md)
 - [006 界面与常驻](docs/006-interface.md)
+- [007 连接器：GitHub](docs/007-connectors.md)
 
 ## 路线图
 

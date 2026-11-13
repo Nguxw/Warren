@@ -5,6 +5,7 @@ import { api, subscribe, Unauthorized } from "./api.ts";
 import { NewTaskDialog } from "./components/NewTaskDialog.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
 import { TaskView } from "./components/TaskView.tsx";
+import { TriggersView } from "./components/TriggersView.tsx";
 import { I18nProvider, useI18n } from "./context.tsx";
 import { Logo, Plus } from "./icons.tsx";
 
@@ -32,6 +33,7 @@ function Shell() {
     new URLSearchParams(window.location.search).get("task"),
   );
   const [creating, setCreating] = useState(false);
+  const [showTriggers, setShowTriggers] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const tasks = useQuery({ queryKey: ["tasks"], queryFn: api.tasks });
@@ -41,6 +43,7 @@ function Shell() {
   const select = useCallback((id: string | null) => {
     setSelected(id);
     setCreating(false);
+    setShowTriggers(false);
     history.replaceState(null, "", id ? `?task=${id}` : window.location.pathname);
   }, []);
   const closeDialog = useCallback(() => setCreating(false), []);
@@ -75,9 +78,17 @@ function Shell() {
         onQuery={setQuery}
         onSelect={select}
         onNew={() => setCreating(true)}
+        showingTriggers={showTriggers}
+        onTriggers={() => {
+          setShowTriggers(true);
+          setSelected(null);
+          history.replaceState(null, "", window.location.pathname);
+        }}
       />
       <main className="main">
-        {selected ? (
+        {showTriggers ? (
+          <TriggersView onOpenTask={(id) => select(id)} />
+        ) : selected ? (
           <TaskView key={selected} id={selected} />
         ) : (
           <Empty onNew={() => setCreating(true)} hasTasks={(tasks.data?.length ?? 0) > 0} />
@@ -106,6 +117,7 @@ function useLiveUpdates(enabled: boolean) {
     const flush = () => {
       pending = undefined;
       client.invalidateQueries({ queryKey: ["tasks"] });
+      client.invalidateQueries({ queryKey: ["triggers"] });
       for (const id of touched) {
         client.invalidateQueries({ queryKey: ["task", id] });
         client.invalidateQueries({ queryKey: ["diff", id] });

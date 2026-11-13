@@ -1,5 +1,11 @@
 import type { TaskState } from "@warren/core";
-import type { CreateTaskRequest, TaskEvent, TaskStatus, TaskSummary } from "@warren/protocol";
+import type {
+  CreateTaskRequest,
+  TaskEvent,
+  TaskStatus,
+  TaskSummary,
+  TriggerRecord,
+} from "@warren/protocol";
 
 /**
  * The daemon API from the browser. The page is served by the daemon itself, so requests are
@@ -54,6 +60,8 @@ export const api = {
     request<{ events: TaskEvent[] }>("GET", `/tasks/${id}/events`).then((r) => r.events),
   diff: (id: string) =>
     request<{ diff: WorkspaceDiff }>("GET", `/tasks/${id}/diff`).then((r) => r.diff),
+  triggers: () =>
+    request<{ triggers: TriggerRecord[] }>("GET", "/triggers?limit=200").then((r) => r.triggers),
   cursor: () => request<{ id: number }>("GET", "/events/cursor").then((r) => r.id),
   health: () =>
     request<{ ok: boolean; sandbox: string; secrets: Record<string, boolean> }>("GET", "/health"),

@@ -236,6 +236,15 @@ export function FileIcon(props: IconProps) {
   );
 }
 
+export function Inbox(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3.5 13.5h5l1.5 2.5h4l1.5-2.5h5" />
+      <path d="M5.5 5.5h13l2 8v4a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-4Z" />
+    </Svg>
+  );
+}
+
 /** Warren's mark: the burrow's arches, as in the app icon. */
 export function Logo({ size = 20 }: { size?: number }) {
   return (

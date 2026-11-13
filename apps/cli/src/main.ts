@@ -9,7 +9,7 @@ import {
   startDaemon,
   warrenPaths,
 } from "@warren/daemon";
-import type { TaskEvent, TaskSummary } from "@warren/protocol";
+import type { TaskEvent, TaskSummary, TriggerRecord } from "@warren/protocol";
 import { seatbeltAvailable } from "@warren/tools";
 import ui from "@warren/web/index.html";
 import { CliError, DaemonClient } from "./client.ts";
@@ -20,6 +20,7 @@ import {
   red,
   renderEvent,
   renderTask,
+  renderTrigger,
   renderUsage,
   shortId,
   yellow,
@@ -48,6 +49,7 @@ Usage:
   warren approve <id>                Approve the action the task is waiting on
   warren deny <id> [reason…]         Decline it; the reason goes to the task
   warren pause|resume|cancel <id>    Control a task
+  warren triggers [--limit n]        Events from GitHub and what Warren decided
   warren doctor                      Check the setup
 
 Ids can be shortened to the 8 characters \`warren tasks\` shows.`;
@@ -92,6 +94,8 @@ async function main(argv: string[]): Promise<number> {
       return control(command, rest);
     case "doctor":
       return doctor();
+    case "triggers":
+      return triggers(rest);
     case undefined:
     case "help":
     case "--help":
@@ -315,6 +319,20 @@ function mayStop(event: TaskEvent): boolean {
 function print(event: TaskEvent): void {
   const text = renderEvent(event);
   if (text) console.log(text);
+}
+
+async function triggers(args: string[]): Promise<number> {
+  const { values } = parseArgs({ args, options: { limit: { type: "string" } } });
+  const { triggers: list } = await client().request<{ triggers: TriggerRecord[] }>(
+    "GET",
+    `/triggers?limit=${Number(values.limit ?? 30)}`,
+  );
+  if (list.length === 0) {
+    console.log(dim("No events yet. Configure github in ~/.warren/config.json (see docs/007)."));
+    return 0;
+  }
+  for (const record of list) console.log(renderTrigger(record));
+  return 0;
 }
 
 async function doctor(): Promise<number> {

@@ -14,6 +14,8 @@ import { type Config, loadConfig } from "./config/config.ts";
 import { loadSecrets } from "./config/secrets.ts";
 import { warrenPaths } from "./paths.ts";
 import { workspaceDiff } from "./runtime/diff.ts";
+import { GitHubRuntime } from "./runtime/github.ts";
+import { Intake } from "./runtime/intake.ts";
 import { modelResolver, providerClients, secretStatus } from "./runtime/models.ts";
 import { macNotify, type Notify, taskNotifications } from "./runtime/notifications.ts";
 import { type Logger, Scheduler, stderrLogger } from "./runtime/scheduler.ts";
@@ -22,6 +24,7 @@ import { createApp } from "./server/app.ts";
 import { Notifier } from "./server/notifier.ts";
 import { openDatabase } from "./store/database.ts";
 import { type Clock, systemClock, TaskStore } from "./store/task-store.ts";
+import { TriggerStore } from "./store/trigger-store.ts";
 
 export interface DaemonOptions {
   /** Defaults to WARREN_HOME or ~/.warren. */
@@ -46,6 +49,8 @@ export interface RunningDaemon {
   url: string;
   store: TaskStore;
   scheduler: Scheduler;
+  intake: Intake;
+  github: GitHubRuntime | undefined;
   stop(): Promise<void>;
 }
 
@@ -78,10 +83,13 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
         options.notify ?? (process.platform === "darwin" ? macNotify : () => {}),
       )
     : () => {};
+  let github: GitHubRuntime | undefined;
   const store: TaskStore = new TaskStore(db, options.clock ?? systemClock, (events) => {
     notifier.notify();
     notifications(events);
+    github?.onCommit(events);
   });
+  const triggers = new TriggerStore(db);
   const workspaces = new Workspaces(paths.tasks);
   const scheduler = new Scheduler({
     store,
@@ -96,6 +104,30 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     },
   });
 
+  const now = () => (options.clock ?? systemClock).now();
+  const intake = new Intake({
+    db,
+    tasks: store,
+    triggers,
+    github: () => config.github,
+    botLogin: () => github?.login,
+    newId: () => Bun.randomUUIDv7(),
+    wake: (id) => scheduler.wake(id),
+    now,
+  });
+  if (config.github) {
+    github = new GitHubRuntime({
+      config: config.github,
+      token: secrets.WARREN_GITHUB_TOKEN,
+      webhookSecret: secrets.WARREN_GITHUB_WEBHOOK_SECRET,
+      intake,
+      triggers,
+      tasks: store,
+      logger,
+      now,
+    });
+  }
+
   const token = loadToken(paths.token);
   const app = createApp({
     store,
@@ -105,6 +137,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     token,
     secrets: secretStatus(config.models, secrets),
     sandbox: sandbox.name,
+    triggers,
     diff: async (task) => {
       if (task.grant.workspace.kind !== "clone") return undefined;
       const workspace = workspaces.pathOf(task.id);
@@ -147,6 +180,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
   chmodSync(paths.daemonInfo, 0o600);
 
   scheduler.resumeAll();
+  await github?.start();
   logger.info("daemon started", { port: info.port, home: paths.home });
 
   let stopping: Promise<void> | undefined;
@@ -155,8 +189,11 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     url: `http://${config.server.host}:${info.port}`,
     store,
     scheduler,
+    intake,
+    github,
     stop() {
       stopping ??= (async () => {
+        await github?.stop();
         await scheduler.stop();
         await server.stop(true);
         db.close();

@@ -1,4 +1,4 @@
-import type { TaskEvent, TaskSummary } from "@warren/protocol";
+import type { TaskEvent, TaskSummary, TriggerRecord } from "@warren/protocol";
 
 const tty = process.stdout.isTTY && !process.env.NO_COLOR;
 const paint = (code: number) => (text: string) => (tty ? `\x1b[${code}m${text}\x1b[0m` : text);
@@ -129,4 +129,26 @@ export function renderUsage(usage: {
   return dim(
     `${usage.modelCalls} model calls · ${k(usage.inputTokens)} in (${k(usage.cachedInputTokens)} cached) · ${k(usage.outputTokens)} out · $${usage.costUsd.toFixed(4)}`,
   );
+}
+
+export function renderTrigger(record: TriggerRecord, now = Date.now()): string {
+  const { event, decision } = record;
+  const action =
+    decision.action === "create"
+      ? green("create ")
+      : decision.action === "observe"
+        ? yellow("observe")
+        : decision.action === "ignore"
+          ? dim("ignore ")
+          : cyan(decision.action.padEnd(7));
+  const where = event.thread.replace(/^github:/, "");
+  const who = event.actor ? `@${event.actor}` : event.kind;
+  const why =
+    decision.action === "ignore" || decision.action === "observe"
+      ? dim(decision.reason)
+      : decision.action === "create"
+        ? decision.title
+        : "";
+  const task = record.taskId ? dim(` → ${shortId(record.taskId)}`) : "";
+  return `${dim(ago(now - record.receivedAt).padEnd(9))} ${action} ${where} ${dim(who)}  ${why}${task}`;
 }

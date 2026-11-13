@@ -15,6 +15,7 @@ import type { Config } from "../config/config.ts";
 import type { WorkspaceDiff } from "../runtime/diff.ts";
 import type { Scheduler } from "../runtime/scheduler.ts";
 import { type TaskStore, UnknownTaskError } from "../store/task-store.ts";
+import type { TriggerStore } from "../store/trigger-store.ts";
 import type { Notifier } from "./notifier.ts";
 
 export interface AppDeps {
@@ -29,6 +30,7 @@ export interface AppDeps {
   newId(): string;
   /** Interval for keep-alive comments on idle streams. */
   heartbeatMs?: number;
+  triggers?: TriggerStore;
   /** What a task changed in its workspace; undefined when it has no repository workspace. */
   diff?(task: TaskState): Promise<WorkspaceDiff | undefined>;
 }
@@ -124,6 +126,12 @@ export function createApp(deps: AppDeps) {
       return { ...task, ...repo, attention };
     });
     return c.json({ tasks });
+  });
+
+  /** Events from connectors with what routing decided; the record Observe mode is judged by. */
+  app.get("/triggers", (c) => {
+    const limit = Number(c.req.query("limit") ?? 100);
+    return c.json({ triggers: deps.triggers?.list(limit) ?? [] });
   });
 
   app.get("/events/cursor", (c) => c.json({ id: store.latestEventId() }));

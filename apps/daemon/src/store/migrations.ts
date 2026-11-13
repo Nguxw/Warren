@@ -43,6 +43,30 @@ export const MIGRATIONS: readonly Migration[] = [
       ) STRICT;
     `,
   },
+  {
+    version: 2,
+    name: "trigger events and cursors",
+    sql: `
+      -- Every event from a connector, once: (source, external_id) is the dedupe key that makes
+      -- a webhook and a reconcile poll of the same happening collapse into one row.
+      CREATE TABLE trigger_events (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        source      TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        event       TEXT NOT NULL,
+        decision    TEXT NOT NULL,
+        task_id     TEXT,
+        received_at INTEGER NOT NULL,
+        UNIQUE (source, external_id)
+      ) STRICT;
+
+      -- Where each connector's reconcile poll continues from.
+      CREATE TABLE cursors (
+        name  TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      ) STRICT;
+    `,
+  },
 ];
 
 export class MigrationError extends Error {

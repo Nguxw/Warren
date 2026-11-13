@@ -49,6 +49,7 @@ export interface TaskState {
   grant: Grant;
   trigger: TriggerRef;
   modelRole?: string;
+  follows: string[];
   createdAt: number;
   updatedAt: number;
   lastSeq: number;
@@ -93,7 +94,7 @@ export function foldEvents(events: Iterable<TaskEvent>): TaskState {
 export function createState(event: TaskEvent): TaskState {
   if (event.type !== "task.created") fail(event, "a log must start with task.created");
   if (event.seq !== 0) fail(event, "task.created must have seq 0");
-  const { title, instruction, grant, trigger, modelRole } = event.data;
+  const { title, instruction, grant, trigger, modelRole, follows } = event.data;
   return {
     id: event.taskId,
     title,
@@ -101,6 +102,7 @@ export function createState(event: TaskEvent): TaskState {
     grant,
     trigger,
     ...(modelRole !== undefined && { modelRole }),
+    follows: follows ?? [],
     createdAt: event.at,
     updatedAt: event.at,
     lastSeq: 0,
