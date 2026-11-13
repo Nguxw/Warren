@@ -6,6 +6,7 @@ import {
   type Usage,
 } from "@warren/protocol";
 import { z } from "zod";
+import { estimateTokens, planCompaction, SUMMARIZE_INSTRUCTIONS, transcript } from "./context.ts";
 import {
   ModelError,
   type ModelPrice,
@@ -41,12 +42,24 @@ export interface LoopLimits {
   maxModelRetries: number;
   /** Longest wait between retries. */
   maxBackoffMs: number;
+  /** Compact when the conversation passes this share of the context window. */
+  compactAt: number;
+  /** Share of the context window kept verbatim after compacting. */
+  keepAfterCompaction: number;
+  /** Used when a model's context window is not configured. */
+  defaultContextWindow: number;
+  /** The model role that writes summaries; the task's own model when it is not configured. */
+  summarizerRole: string;
 }
 
 export const DEFAULT_LIMITS: LoopLimits = {
   defaultMaxModelCalls: 200,
   maxModelRetries: 6,
   maxBackoffMs: 60_000,
+  compactAt: 0.75,
+  keepAfterCompaction: 0.25,
+  defaultContextWindow: 128_000,
+  summarizerRole: "cheap",
 };
 
 /** Tools the loop handles itself, because they change the task rather than the workspace. */
@@ -135,6 +148,24 @@ export async function runTask(
     }
     const model = { provider: resolved.client.provider, model: resolved.model };
 
+    const window = resolved.contextWindow ?? limits.defaultContextWindow;
+    if (estimateTokens(state.history) > window * limits.compactAt) {
+      try {
+        if (await compact(state, window, role)) return;
+      } catch (error) {
+        if (signal.aborted) return;
+        const failure =
+          error instanceof ModelError
+            ? error
+            : new ModelError("fatal", `compaction: ${message(error)}`);
+        deps.log.append(taskId, [
+          { type: "model.failed", data: { model, kind: failure.kind, message: failure.message } },
+        ]);
+        await afterFailure(failure, state.modelFailuresInARow + 1, window, role);
+        return;
+      }
+    }
+
     const started = Date.now();
     try {
       const response = await resolved.client.complete({
@@ -168,11 +199,63 @@ export async function runTask(
       deps.log.append(taskId, [
         { type: "model.failed", data: { model, kind: failure.kind, message: failure.message } },
       ]);
-      await afterFailure(failure, state.modelFailuresInARow + 1);
+      await afterFailure(failure, state.modelFailuresInARow + 1, window, role);
     }
   }
 
-  async function afterFailure(failure: ModelError, failuresInARow: number): Promise<void> {
+  /** Replaces older conversation with a summary; false when there is too little to compact. */
+  async function compact(state: TaskState, window: number, role: string): Promise<boolean> {
+    const replaces = planCompaction(state.history, window * limits.keepAfterCompaction);
+    if (!replaces) return false;
+    let summarizer: ReturnType<ModelResolver["resolve"]>;
+    try {
+      summarizer = deps.models.resolve(limits.summarizerRole);
+    } catch {
+      summarizer = deps.models.resolve(role);
+    }
+    const response = await summarizer.client.complete({
+      model: summarizer.model,
+      instructions: SUMMARIZE_INSTRUCTIONS,
+      items: [
+        {
+          type: "message",
+          role: "user",
+          content: text(transcript(state.history.slice(1, 1 + replaces))),
+        },
+      ],
+      tools: [],
+      signal,
+    });
+    const summary = response.items
+      .flatMap((item) => (item.type === "message" ? item.content.map((part) => part.text) : []))
+      .join("\n")
+      .trim();
+    if (!summary) return false;
+    deps.log.append(taskId, [
+      {
+        type: "context.compacted",
+        data: {
+          summary,
+          replaces,
+          model: { provider: summarizer.client.provider, model: summarizer.model },
+          usage: withCost(response.usage, summarizer.price),
+        },
+      },
+    ]);
+    return true;
+  }
+
+  async function afterFailure(
+    failure: ModelError,
+    failuresInARow: number,
+    window: number,
+    role: string,
+  ): Promise<void> {
+    // Too long for the model: compact and try again, once; a second overflow in a row ends it.
+    if (failure.kind === "context_overflow" && failuresInARow < 2) {
+      const current = deps.log.get(taskId);
+      if (current && (await compact(current, window, role).catch(() => false))) return;
+    }
     if (failure.kind === "retryable") {
       if (failuresInARow >= limits.maxModelRetries) {
         deps.log.append(taskId, [

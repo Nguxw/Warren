@@ -11,6 +11,8 @@ const common = {
   model: z.string(),
   reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
   maxOutputTokens: z.number().int().positive().optional(),
+  /** Context window in tokens; long tasks are compacted well before they reach it. */
+  contextWindow: z.number().int().positive().optional(),
   /** US dollars per million tokens; used for budgets and reporting. */
   price: z
     .object({

@@ -197,6 +197,8 @@ export function noticeText(t: Translate, notice: Notice): string {
       return t("notice.paused", { reason: notice.reason });
     case "resumed":
       return t("notice.resumed");
+    case "compacted":
+      return t("notice.compacted", { n: notice.replaces });
     default: {
       const heading = t(`notice.${notice.type}`);
       return notice.summary ? `${heading}\n${notice.summary}` : heading;

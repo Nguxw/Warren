@@ -88,6 +88,8 @@ export function renderEvent(event: TaskEvent): string | undefined {
       return yellow(`■ paused: ${event.data.reason}`);
     case "task.resumed":
       return dim("▶ resumed");
+    case "context.compacted":
+      return dim(`  ⋯ compacted ${event.data.replaces} earlier items into a summary`);
     case "task.ended": {
       const color =
         event.data.outcome === "completed" ? green : event.data.outcome === "failed" ? red : yellow;

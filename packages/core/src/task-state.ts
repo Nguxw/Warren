@@ -71,6 +71,7 @@ export interface TaskState {
   ended?: { outcome: TaskEndOutcome; summary?: string; at: number };
   usage: UsageTotals;
   modelFailuresInARow: number;
+  compactions: number;
 }
 
 export class LogInvariantError extends Error {
@@ -121,6 +122,7 @@ export function createState(event: TaskEvent): TaskState {
       costUsd: 0,
     },
     modelFailuresInARow: 0,
+    compactions: 0,
   };
 }
 
@@ -216,6 +218,24 @@ export function applyEvent(state: TaskState, event: TaskEvent): void {
       break;
     }
 
+    case "context.compacted": {
+      const { replaces, summary, usage } = event.data;
+      if (state.pendingCalls.length > 0) fail(event, "tool calls are pending");
+      if (!isSafeCut(state.history, 1 + replaces))
+        fail(event, `cannot replace ${replaces} items here`);
+      state.history = [
+        state.history[0] as ConversationItem,
+        summaryItem(summary),
+        ...state.history.slice(1 + replaces),
+      ];
+      state.compactions += 1;
+      state.usage.inputTokens += usage.inputTokens;
+      state.usage.outputTokens += usage.outputTokens;
+      state.usage.cachedInputTokens += usage.cachedInputTokens ?? 0;
+      state.usage.costUsd += usage.costUsd ?? 0;
+      break;
+    }
+
     case "task.paused":
       if (state.paused) fail(event, "already paused");
       state.paused = { reason: event.data.reason, at: event.at };
@@ -242,6 +262,30 @@ export function applyEvent(state: TaskState, event: TaskEvent): void {
 
   state.lastSeq = event.seq;
   state.updatedAt = event.at;
+}
+
+/** How a summary appears to the model, in place of the conversation it replaces. */
+export function summaryItem(summary: string): UserMessageItem {
+  return {
+    type: "message",
+    role: "user",
+    content: [{ type: "text", text: `[Summary of the earlier part of this task]\n${summary}` }],
+  };
+}
+
+/**
+ * Whether history items 1..end-1 can be replaced: every tool call in that range has its result
+ * in it too, and the item after it is not a tool result, so no call and result are separated.
+ */
+export function isSafeCut(history: readonly ConversationItem[], end: number): boolean {
+  if (end < 2 || end > history.length) return false;
+  const open = new Set<string>();
+  for (let i = 1; i < end; i += 1) {
+    const item = history[i];
+    if (item?.type === "tool_call") open.add(item.callId);
+    if (item?.type === "tool_result") open.delete(item.callId);
+  }
+  return open.size === 0 && history[end]?.type !== "tool_result";
 }
 
 /** What the loop should do next. Derived from state only, so it is the same after a restart. */

@@ -57,6 +57,7 @@ export function modelResolver(
         ...(config.reasoningEffort && { reasoningEffort: config.reasoningEffort }),
         ...(config.maxOutputTokens && { maxOutputTokens: config.maxOutputTokens }),
         ...(config.price && { price: config.price }),
+        ...(config.contextWindow && { contextWindow: config.contextWindow }),
       };
     },
   };

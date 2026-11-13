@@ -44,6 +44,7 @@ export type Notice =
   | { type: "retryable" | "fatal" | "context_overflow"; message: string }
   | { type: "paused"; reason: string }
   | { type: "resumed" }
+  | { type: "compacted"; replaces: number }
   | { type: "completed" | "failed" | "cancelled"; summary?: string };
 
 /** An entry with a key that stays the same as the log grows: `<seq>.<n-th entry of that event>`. */
@@ -150,6 +151,15 @@ export function timeline(events: readonly TaskEvent[]): KeyedEntry[] {
           at,
           tone: "warn",
           notice: { type: "paused", reason: event.data.reason },
+        });
+        break;
+      case "context.compacted":
+        entries.push({
+          kind: "notice",
+          seq,
+          at,
+          tone: "info",
+          notice: { type: "compacted", replaces: event.data.replaces },
         });
         break;
       case "task.resumed":

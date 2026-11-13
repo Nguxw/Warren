@@ -137,6 +137,20 @@ export const AttentionResolved = event(
   }),
 );
 
+/**
+ * Older conversation replaced by a summary, so a long task fits the model's context. The first
+ * `replaces` items after the instruction give way to one summary message; the log keeps them all.
+ */
+export const ContextCompacted = event(
+  "context.compacted",
+  z.object({
+    summary: z.string(),
+    replaces: z.number().int().positive(),
+    model: ModelRef,
+    usage: Usage,
+  }),
+);
+
 export const TaskPaused = event("task.paused", z.object({ reason: z.string() }));
 export const TaskResumed = event("task.resumed", z.object({}));
 
@@ -157,6 +171,7 @@ export const TaskEvent = z.discriminatedUnion("type", [
   ToolFinished,
   AttentionRequested,
   AttentionResolved,
+  ContextCompacted,
   TaskPaused,
   TaskResumed,
   TaskEnded,
@@ -180,6 +195,7 @@ export const EVENT_VERSIONS: { readonly [T in TaskEventType]: EventOf<T>["v"] } 
   "tool.finished": 1,
   "attention.requested": 1,
   "attention.resolved": 1,
+  "context.compacted": 1,
   "task.paused": 1,
   "task.resumed": 1,
   "task.ended": 1,

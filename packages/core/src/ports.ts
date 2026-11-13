@@ -77,6 +77,8 @@ export interface ResolvedModel {
   reasoningEffort?: ReasoningEffort;
   maxOutputTokens?: number;
   price?: ModelPrice;
+  /** Context window in tokens; compaction keeps requests well below it. */
+  contextWindow?: number;
 }
 
 export interface ModelResolver {
