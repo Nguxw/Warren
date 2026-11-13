@@ -48,6 +48,13 @@
 
 `bun run build` 输出 `dist/warren`。它是一个自带 Bun 运行时的可执行文件，包含 CLI、守护进程和打包好的界面，可以直接复制到 `PATH` 里使用。
 
-## 桌面外壳（未做）
+## 桌面外壳
 
-计划用 Tauri v2 包一层原生窗口和菜单栏图标，窗口加载守护进程提供的同一个页面。它需要 Rust 工具链，本机目前没有，所以还没实现。界面本身与外壳无关，加外壳不需要改动任何页面代码。
+`apps/desktop`，Tauri v2（Rust）。它只是一层外壳，不含任何状态或逻辑；关掉它不会停止任何工作，因为工作在守护进程里。
+
+- **窗口：** 加载守护进程提供的同一个页面。外壳读取 `~/.warren/daemon.json`（遵守 `WARREN_HOME`）拿到端口和 token，并确认端口能连通后，用 `/#token=…` 打开页面，和 `warren open` 一样。
+- **守护进程未运行时：** 显示外壳自带的本地提示页（中英双语，默认中文），说明如何启动，并每 3 秒请求外壳重新连接，守护进程一起来就切换过去。
+- **菜单栏：** 有一个模板图标，菜单里是"打开 Warren"和"退出窗口"。关闭窗口只是隐藏；点击 Dock 图标会重新显示。
+- **安全：** 守护进程的页面对外壳来说是远程来源，没有任何 IPC 权限，所以它在外壳里的能力和在浏览器里完全一样。只有外壳自己的本地提示页能调用唯一的命令 `connect`。本地页的内容安全策略禁止内联脚本。
+- **构建：** `cd apps/desktop && bun run build` 输出 `src-tauri/target/release/bundle/macos/Warren.app`。需要 Rust 工具链（`brew install rustup && rustup default stable`）。
+- **图标：** 源文件是 `apps/desktop/icon-src/` 里的 SVG，用 `bunx tauri icon` 生成各尺寸。菜单栏图标是单色模板图，会自动适配深色和浅色菜单栏。

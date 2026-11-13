@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Warren</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <h1 data-i18n="title">Warren 守护进程未运行</h1>
+      <p data-i18n="body">Warren 的工作由后台守护进程完成。请在终端中运行以下任一命令：</p>
+      <pre>warren service install</pre>
+      <p class="hint" data-i18n="service">开机自动运行（推荐）</p>
+      <pre>warren daemon</pre>
+      <p class="hint" data-i18n="foreground">只在当前终端中运行</p>
+      <p class="status" data-i18n="retrying">守护进程启动后会自动连接…</p>
+      <div class="actions">
+        <button id="retry" type="button" data-i18n="retry">立即重试</button>
+        <button id="lang" type="button" class="link">English</button>
+      </div>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>

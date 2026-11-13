@@ -9,3 +9,4 @@ dist/
 .env
 .env.*
 *.bun-build
+apps/desktop/src-tauri/target/

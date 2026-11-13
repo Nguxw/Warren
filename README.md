@@ -11,7 +11,7 @@
 > 状态：开发中。M4 已完成：
 >
 > - 中英双语 Web 界面：收件箱、实时时间线、轨迹回放、审批。
-> - macOS 系统通知，launchd 开机常驻，单文件发布。
+> - 桌面应用（Tauri）与菜单栏图标，macOS 系统通知，launchd 开机常驻，单文件发布。
 > - 任务的命令在 Seatbelt 沙箱里运行；在 200 个任务、519 次 `kill -9` 的混沌测试中，任务全部完成，外部动作无一重复执行。
 
 ## 架构
@@ -34,6 +34,7 @@ protocol    事件格式 · 对话格式 · API 契约               （所有�
 | `apps/daemon` | 守护进程：Store、调度器、工作区、HTTP API |
 | `apps/cli` | `warren` 命令，以及 launchd 服务 |
 | `apps/web` | Web 界面（React，由 Bun 打包，中英双语） |
+| `apps/desktop` | 桌面外壳（Tauri v2）：原生窗口和菜单栏图标 |
 | `evals` | 混沌测试（反复 `kill -9` 真实守护进程） |
 
 依赖方向：`protocol` ← `core` ← 适配器 ← `apps/*`。只有 `apps/daemon` 负责组装。
@@ -49,6 +50,7 @@ bun test                                    # 只跑测试
 WARREN_LIVE=1 bun test packages/model       # 加上真实 OpenAI API 测试（花费不到一美分）
 bun run chaos 200                           # 混沌测试：反复 kill -9 守护进程，检查不变量
 bun run build                               # 编译成单文件 dist/warren（含界面）
+cd apps/desktop && bun run build            # 桌面应用 Warren.app（需要 Rust 工具链）
 bun run format                              # 自动格式化
 ```
 

@@ -1,0 +1,14 @@
+{
+  "name": "@warren/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tauri": "PATH=/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH tauri",
+    "build": "PATH=/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH tauri build --bundles app",
+    "dev": "PATH=/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH tauri dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4"
+  }
+}

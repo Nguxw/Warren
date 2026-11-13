@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Warren</title>
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="#1f2338"/>
+  <g fill="none" stroke="#8fa5ff" stroke-linecap="round" stroke-width="58">
+    <path d="M232 720 A280 280 0 0 1 792 720"/>
+    <path d="M342 720 A170 170 0 0 1 682 720"/>
+  </g>
+  <path d="M452 720 A60 60 0 0 1 572 720 Z" fill="#8fa5ff"/>
+  <line x1="200" y1="720" x2="824" y2="720" stroke="#8fa5ff" stroke-width="40" stroke-linecap="round" opacity="0.45"/>
+</svg>
