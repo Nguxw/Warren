@@ -3,6 +3,7 @@ import type {
   Grant,
   TaskEndOutcome,
   TaskEvent,
+  TaskStatus,
   ToolCallItem,
   ToolEffect,
   TriggerRef,
@@ -47,6 +48,7 @@ export interface TaskState {
   instruction: string;
   grant: Grant;
   trigger: TriggerRef;
+  modelRole?: string;
   createdAt: number;
   updatedAt: number;
   lastSeq: number;
@@ -62,6 +64,8 @@ export interface TaskState {
    */
   queuedInputs: UserMessageItem[];
   attention: OpenAttention[];
+  /** Answers to attention tied to a tool call, kept until that call has its result. */
+  answers: Record<string, { response: string; approved?: boolean }>;
   paused?: { reason: string; at: number };
   ended?: { outcome: TaskEndOutcome; summary?: string; at: number };
   usage: UsageTotals;
@@ -89,13 +93,14 @@ export function foldEvents(events: Iterable<TaskEvent>): TaskState {
 export function createState(event: TaskEvent): TaskState {
   if (event.type !== "task.created") fail(event, "a log must start with task.created");
   if (event.seq !== 0) fail(event, "task.created must have seq 0");
-  const { title, instruction, grant, trigger } = event.data;
+  const { title, instruction, grant, trigger, modelRole } = event.data;
   return {
     id: event.taskId,
     title,
     instruction,
     grant,
     trigger,
+    ...(modelRole !== undefined && { modelRole }),
     createdAt: event.at,
     updatedAt: event.at,
     lastSeq: 0,
@@ -104,6 +109,7 @@ export function createState(event: TaskEvent): TaskState {
     running: [],
     queuedInputs: [],
     attention: [],
+    answers: {},
     usage: {
       modelCalls: 0,
       inputTokens: 0,
@@ -170,6 +176,7 @@ export function applyEvent(state: TaskState, event: TaskEvent): void {
       if (index < 0) fail(event, `no pending call ${callId}`);
       state.pendingCalls.splice(index, 1);
       state.running = state.running.filter((r) => r.callId !== callId);
+      delete state.answers[callId];
       state.history.push({ type: "tool_result", callId, outcome, content });
       if (state.pendingCalls.length === 0 && state.queuedInputs.length > 0) {
         state.history.push(...state.queuedInputs);
@@ -199,7 +206,11 @@ export function applyEvent(state: TaskState, event: TaskEvent): void {
     case "attention.resolved": {
       const index = state.attention.findIndex((a) => a.attentionId === event.data.attentionId);
       if (index < 0) fail(event, `attention ${event.data.attentionId} is not open`);
-      state.attention.splice(index, 1);
+      const [resolved] = state.attention.splice(index, 1);
+      if (resolved?.callId !== undefined) {
+        const { response, approved } = event.data;
+        state.answers[resolved.callId] = { response, ...(approved !== undefined && { approved }) };
+      }
       break;
     }
 
@@ -256,8 +267,6 @@ export function nextStep(state: TaskState): NextStep {
   }
   return { kind: "idle" };
 }
-
-export type TaskStatus = "active" | "waiting" | "idle" | "paused" | "ended";
 
 export function statusOf(state: TaskState): TaskStatus {
   switch (nextStep(state).kind) {

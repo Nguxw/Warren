@@ -1,0 +1,14 @@
+{
+  "name": "@warren/model",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@warren/core": "workspace:*",
+    "@warren/protocol": "workspace:*",
+    "openai": "^7.56.0"
+  }
+}

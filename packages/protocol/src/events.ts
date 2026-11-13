@@ -58,6 +58,8 @@ export const TaskCreated = event(
     instruction: z.string(),
     grant: Grant,
     trigger: TriggerRef,
+    /** Model role from the config (`main` when absent); the model actually used is in each response. */
+    modelRole: z.string().optional(),
   }),
 );
 

@@ -7,7 +7,7 @@
 - **多模型**：内部使用与提供方无关的对话格式，通过适配器接入 OpenAI、OpenAI 兼容接口（DeepSeek、Qwen、Ollama）和 Anthropic。
 - **少打扰**：只在需要回答、需要审批、结果可用时通知你。
 
-> 状态：开发中（M0：工程底座和事件日志）。
+> 状态：开发中。M1 已完成：可以通过 CLI 让 Warren 在仓库的克隆里完成任务，进程崩溃后能接着执行。
 
 ## 架构
 
@@ -22,9 +22,12 @@ protocol    事件格式 · 对话格式 · API 契约               （所有�
 
 | 目录 | 内容 |
 |---|---|
-| `packages/protocol` | 事件格式 v1、内部对话格式、Grant，以及事件版本升级 |
-| `packages/core` | 从事件日志折叠任务状态、推出下一步；不做任何 IO |
-| `apps/daemon` | 守护进程：Store（SQLite、迁移），之后是循环调度、API、接入层 |
+| `packages/protocol` | 事件格式 v1、内部对话格式、Grant、API 契约 |
+| `packages/core` | 状态折叠、Agent 循环、各接口定义；不做任何 IO |
+| `packages/model` | 模型适配器：OpenAI Responses |
+| `packages/tools` | 内置工具：读写编辑文件、搜索、shell |
+| `apps/daemon` | 守护进程：Store、调度器、工作区、HTTP API |
+| `apps/cli` | `warren` 命令 |
 
 依赖方向：`protocol` ← `core` ← 适配器 ← `apps/*`。只有 `apps/daemon` 负责组装。
 
@@ -34,10 +37,27 @@ protocol    事件格式 · 对话格式 · API 契约               （所有�
 
 ```sh
 bun install
-bun run check     # 类型检查 + lint + 测试
-bun test          # 只跑测试
-bun run format    # 自动格式化
+bun run check                               # 类型检查 + lint + 测试
+bun test                                    # 只跑测试
+WARREN_LIVE=1 bun test packages/model       # 加上真实 OpenAI API 测试（花费不到一美分）
+bun run format                              # 自动格式化
 ```
+
+## 使用
+
+```sh
+bun install
+cd apps/cli && bun link && cd ../..   # 安装全局命令 warren
+
+warren daemon                         # 在一个终端里运行守护进程
+warren run --repo ~/code/app "修复 xxx 测试，然后提交"
+warren tasks                          # 看还在进行的任务
+warren follow <id>                    # 跟随一个任务
+warren answer <id> "<回答>"           # 回答任务的问题
+warren doctor                         # 检查配置
+```
+
+任务在 `~/.warren/tasks/<id>/workspace` 里的独立克隆上工作，提交在 `warren/<短 id>` 分支上，你的仓库不会被改动。
 
 ## 配置
 
@@ -51,6 +71,15 @@ chmod 600 ~/.warren/credentials.env
 
 密钥不会写入事件日志、数据库或工具子进程的环境变量。
 
+模型按角色配置，默认 `main = gpt-6.1-terra`、`cheap = gpt-6-luna`、`hard = gpt-6.1-sol`。可以在 `~/.warren/config.json` 中覆盖：
+
+```json
+{
+  "models": { "main": { "model": "gpt-6.1-sol", "reasoningEffort": "high" } },
+  "concurrency": 3
+}
+```
+
 ## 设计文档
 
 按编号阅读，每篇只依赖前面的内容。
@@ -58,6 +87,7 @@ chmod 600 ~/.warren/credentials.env
 - [000 理念](docs/000-philosophy.md)
 - [001 事件日志](docs/001-event-log.md)
 - [002 循环与恢复](docs/002-loop-and-recovery.md)
+- [003 运行时](docs/003-runtime.md)
 
 ## 路线图
 

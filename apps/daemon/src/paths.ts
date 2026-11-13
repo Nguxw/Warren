@@ -16,6 +16,9 @@ export function warrenPaths(home = warrenHome()) {
     database: join(home, "warren.db"),
     /** Secrets such as WARREN_OPENAI_API_KEY, mode 0600. See config/secrets.ts. */
     credentials: join(home, "credentials.env"),
+    config: join(home, "config.json"),
+    /** Where a running daemon tells clients its port and token. */
+    daemonInfo: join(home, "daemon.json"),
     /** One directory per task: its workspace clone and large tool outputs. */
     tasks: join(home, "tasks"),
     logs: join(home, "logs"),

@@ -1,0 +1,53 @@
+import { z } from "zod";
+import { Budget } from "./grant.ts";
+
+/**
+ * The daemon's HTTP API contract, shared by the CLI and the UI.
+ * Breaking changes to these shapes need a new route, not an edit.
+ */
+
+export const TaskStatus = z.enum(["active", "waiting", "idle", "paused", "ended"]);
+export type TaskStatus = z.infer<typeof TaskStatus>;
+
+export interface TaskSummary {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  triggerSource: string;
+  createdAt: number;
+  updatedAt: number;
+  lastSeq: number;
+}
+
+export const CreateTaskRequest = z.object({
+  instruction: z.string().min(1),
+  title: z.string().optional(),
+  /** Local git repository to clone into the task's workspace. Omit for no workspace files. */
+  repo: z.string().optional(),
+  /** Model role from the config, such as `main` or `hard`. */
+  modelRole: z.string().optional(),
+  budget: Budget.optional(),
+});
+export type CreateTaskRequest = z.infer<typeof CreateTaskRequest>;
+
+export const SendInputRequest = z.object({ text: z.string().min(1) });
+export type SendInputRequest = z.infer<typeof SendInputRequest>;
+
+export const ResolveAttentionRequest = z.object({
+  response: z.string(),
+  approved: z.boolean().optional(),
+});
+export type ResolveAttentionRequest = z.infer<typeof ResolveAttentionRequest>;
+
+export interface ApiError {
+  error: string;
+}
+
+/** Written by the daemon to `<WARREN_HOME>/daemon.json` (mode 0600) so clients can find it. */
+export const DaemonInfo = z.object({
+  pid: z.number().int(),
+  port: z.number().int(),
+  token: z.string(),
+  startedAt: z.number().int(),
+});
+export type DaemonInfo = z.infer<typeof DaemonInfo>;

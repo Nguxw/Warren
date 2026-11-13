@@ -1,0 +1,13 @@
+{
+  "name": "@warren/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "warren": "./src/main.ts"
+  },
+  "dependencies": {
+    "@warren/daemon": "workspace:*",
+    "@warren/protocol": "workspace:*"
+  }
+}

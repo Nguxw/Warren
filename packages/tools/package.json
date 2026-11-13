@@ -1,0 +1,14 @@
+{
+  "name": "@warren/tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@warren/core": "workspace:*",
+    "@warren/protocol": "workspace:*",
+    "zod": "^4.6.7"
+  }
+}

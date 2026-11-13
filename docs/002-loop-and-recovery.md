@@ -2,7 +2,7 @@
 
 本文说明 Agent 循环如何从事件日志推出每一步，以及进程中断后如何恢复。前置阅读：[001 事件日志](001-event-log.md)。
 
-> 状态：`nextStep` 已实现（`packages/core/src/task-state.ts`）。循环本身在 M1 实现，本文是它的设计。
+> 实现：`nextStep` 在 `packages/core/src/task-state.ts`，循环在 `packages/core/src/loop.ts`。
 
 ## 下一步由状态决定
 

@@ -7,13 +7,16 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 - `bun run check` — typecheck (tsc 7) + Biome lint + tests; must pass before committing
 - `bun test <path>` — run some tests
 - `bun run format` — apply Biome formatting
+- `WARREN_LIVE=1 bun test packages/model` — also run the real OpenAI API test
+- `bun apps/cli/src/main.ts <command>` — run the CLI from source; use `WARREN_HOME=<dir>` for a throwaway instance
 
 ## Layout and dependency rules
 
-- `packages/protocol` — event format, conversation items, Grant (zod). Depends on nothing internal.
-- `packages/core` — pure domain logic (fold, nextStep, later loop/context). Depends only on `protocol`; no IO, no Bun APIs.
-- Adapters (`packages/model`, `tools`, `connectors`, added per milestone) implement interfaces defined in `core`.
-- `apps/daemon` is the composition root and the only process that writes the database.
+- `packages/protocol` — event format, conversation items, Grant, API contract (zod). Depends on nothing internal.
+- `packages/core` — fold, nextStep, the agent loop, port interfaces (`ports.ts`), test doubles (`@warren/core/testing`). Depends only on `protocol` and zod; no IO, no Bun APIs.
+- Adapters implement `core` interfaces: `packages/model` (OpenAI Responses), `packages/tools` (built-in tools). Connectors come in M5.
+- `apps/daemon` is the composition root (`startDaemon`) and the only process that writes the database. `apps/cli` talks to it over HTTP using `daemon.json`.
+- Design docs: `docs/000`–`003`.
 
 ## Rules that are expensive to break
 
