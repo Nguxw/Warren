@@ -64,12 +64,26 @@ export function renderEvent(event: TaskEvent): string | undefined {
       const tail = rest.length > 0 ? `\n${dim(indent(rest.join("\n"), "      "))}` : "";
       return `    ${mark} ${dim(head)}${tail}`;
     }
-    case "attention.requested":
+    case "attention.requested": {
+      const id = shortId(event.taskId);
+      if (event.data.kind === "approval") {
+        return `${yellow("⚠ needs approval: ")}${bold(event.data.prompt)}\n${dim(
+          `  warren approve ${id}   ·   warren deny ${id} "<reason>"`,
+        )}`;
+      }
       return `${yellow("? ")}${bold(event.data.prompt)}\n${dim(
-        `  answer with: warren answer ${shortId(event.taskId)} "<your answer>"`,
+        `  answer with: warren answer ${id} "<your answer>"`,
       )}`;
-    case "attention.resolved":
-      return `${cyan("you")}  ${event.data.response}`;
+    }
+    case "attention.resolved": {
+      const verdict =
+        event.data.approved === undefined
+          ? ""
+          : event.data.approved
+            ? green("approved ")
+            : red("denied ");
+      return `${cyan("you")}  ${verdict}${event.data.response}`;
+    }
     case "task.paused":
       return yellow(`■ paused: ${event.data.reason}`);
     case "task.resumed":

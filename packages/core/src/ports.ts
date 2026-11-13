@@ -1,6 +1,7 @@
 import type {
   ConversationItem,
   EventDraft,
+  Grant,
   ModelErrorKind,
   ModelOutputItem,
   StopReason,
@@ -88,6 +89,9 @@ export interface ToolContext {
   taskId: string;
   /** Absolute path of the task's workspace; tools must stay inside it. */
   workspace: string;
+  /** The task's private scratch directory (temp files, tool caches), outside the workspace. */
+  scratch: string;
+  grant: Grant;
   signal: AbortSignal;
 }
 
@@ -101,6 +105,15 @@ export interface Tool<A = unknown> {
   description: string;
   parameters: z.ZodType<A>;
   effect: ToolEffect;
+  /**
+   * Privileged tools run in the trusted daemon with credentials the sandbox never sees, such as
+   * pushing or opening a pull request. A task can call one only if its Grant lists it.
+   */
+  privileged?: boolean;
+  /** `required`: a person approves each call before it runs. */
+  approval?: "required" | "auto";
+  /** One line telling the person what an approval would allow. */
+  describe?(args: A, context: Omit<ToolContext, "signal">): string;
   run(args: A, context: ToolContext): Promise<ToolOutput>;
 }
 

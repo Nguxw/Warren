@@ -18,13 +18,15 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 - Adapters implement `core` interfaces: `packages/model` (OpenAI Responses, OpenAI-compatible Chat Completions; shared error rules in `errors.ts`, shared contract tests in `tests/contract.test.ts`), `packages/tools` (built-in tools). Connectors come in M5.
 - `evals/` — chaos harness; the crash scenario lives in `@warren/core/testing` (`push-scenario.ts`) and is shared with `packages/core/tests/simulation.test.ts`.
 - `apps/daemon` is the composition root (`startDaemon`) and the only process that writes the database. `apps/cli` talks to it over HTTP using `daemon.json`.
-- Design docs: `docs/000`–`004`.
+- Design docs: `docs/000`–`005`.
 
 ## Rules that are expensive to break
 
 - Stored events are never edited. To change an event type's data, bump its version in `EVENT_VERSIONS` and add an upcaster in `protocol/src/upcast.ts`. New event types need no version bump.
 - The log stores Warren's own conversation items, never raw provider payloads.
 - `tool.started` is committed before a tool runs; `external` tools are never re-run on recovery.
+- Trusted code (the daemon, privileged tools) never runs git inside a workspace: its hooks and config are model-writable. Fetch from the source side, with hooks, fsmonitor and credential helpers disabled (see `packages/tools/src/privileged.ts`).
+- Paths reach the Seatbelt profile only as `-D` parameters, never spliced into profile text.
 - Migrations in `apps/daemon/src/store/migrations.ts` are forward-only; never edit a released one.
 - Warren uses only its own credentials and `~/.warren` (`WARREN_HOME`); never read or write `~/.codex`, `~/.claude` or `gh` config.
 

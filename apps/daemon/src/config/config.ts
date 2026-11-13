@@ -88,12 +88,25 @@ const ConfigFile = z.object({
     .optional(),
   /** Tasks whose loops run at the same time. */
   concurrency: z.number().int().min(1).max(32).optional(),
+  /** `auto`: Seatbelt on macOS, none elsewhere. `seatbelt` refuses to start without it. */
+  sandbox: z.enum(["auto", "seatbelt", "none"]).optional(),
+  tasks: z
+    .object({
+      /** Whether new tasks may reach the network unless the request says otherwise. */
+      network: z.boolean().optional(),
+    })
+    .optional(),
+  /** Per privileged tool: whether each call needs a person's approval. */
+  approvals: z.record(z.string(), z.enum(["required", "auto"])).optional(),
 });
 
 export interface Config {
   models: Record<string, ModelConfig>;
   server: { host: string; port: number };
   concurrency: number;
+  sandbox: "auto" | "seatbelt" | "none";
+  tasks: { network: boolean };
+  approvals: Record<string, "required" | "auto">;
 }
 
 export const DEFAULT_PORT = 7349;
@@ -104,10 +117,13 @@ export function loadConfig(file: string | undefined): Config {
   if (!parsed.success) {
     throw new Error(`invalid config ${file}:\n${z.prettifyError(parsed.error)}`);
   }
-  const { models, server, concurrency } = parsed.data;
+  const { models, server, concurrency, sandbox, tasks, approvals } = parsed.data;
   return {
     models: { ...DEFAULT_MODELS, ...models },
     server: { host: server?.host ?? "127.0.0.1", port: server?.port ?? DEFAULT_PORT },
     concurrency: concurrency ?? 3,
+    sandbox: sandbox ?? "auto",
+    tasks: { network: tasks?.network ?? false },
+    approvals: approvals ?? {},
   };
 }

@@ -8,8 +8,8 @@ import {
   listFiles,
   readFile,
   resolveInside,
-  search,
-  shell,
+  searchTool,
+  shellTool,
   toolEnv,
   truncateMiddle,
   writeFile,
@@ -25,7 +25,13 @@ beforeEach(() => {
   mkdirSync(join(workspace, "src"), { recursive: true });
   writeFileSync(join(workspace, "src/a.ts"), "const a = 1;\nconst b = 2;\nconst a2 = 1;\n");
   writeFileSync(join(root, "secret.txt"), "top secret");
-  ctx = { taskId: "t1", workspace, signal: new AbortController().signal };
+  ctx = {
+    taskId: "t1",
+    workspace,
+    scratch: join(root, "scratch"),
+    grant: { workspace: { kind: "none" }, network: false, privilegedTools: [], budget: {} },
+    signal: new AbortController().signal,
+  };
 });
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
@@ -86,6 +92,10 @@ describe("file tools", () => {
     expect((await listFiles.run({ pattern: "**/*.md" }, ctx)).text).toBe("docs/new/readme.md");
   });
 });
+
+// Unsandboxed here: the sandbox has its own tests (sandbox.test.ts).
+const search = searchTool();
+const shell = shellTool();
 
 describe("process tools", () => {
   test("search finds matches and reports none", async () => {

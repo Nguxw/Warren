@@ -1,4 +1,10 @@
-import { type EventDraft, type ToolCallItem, text, type Usage } from "@warren/protocol";
+import {
+  type EventDraft,
+  type ToolCallItem,
+  type ToolOutcome,
+  text,
+  type Usage,
+} from "@warren/protocol";
 import { z } from "zod";
 import {
   ModelError,
@@ -22,6 +28,7 @@ export interface LoopDeps {
   models: ModelResolver;
   tools: readonly Tool[];
   workspaceOf(taskId: string): string;
+  scratchOf(taskId: string): string;
   newId(): string;
   sleep(ms: number, signal: AbortSignal): Promise<void>;
   limits?: Partial<LoopLimits>;
@@ -75,14 +82,13 @@ export async function runTask(
   signal: AbortSignal,
 ): Promise<NextStep> {
   const limits = { ...DEFAULT_LIMITS, ...deps.limits };
-  const tools = new Map(deps.tools.map((tool) => [tool.name, tool]));
-  const specs = toolSpecs(deps.tools);
 
   for (;;) {
     const state = deps.log.get(taskId);
     if (!state) throw new Error(`no task ${taskId}`);
     const step = nextStep(state);
     if (signal.aborted) return step;
+    const tools = availableTools(deps.tools, state);
 
     switch (step.kind) {
       case "ended":
@@ -91,18 +97,18 @@ export async function runTask(
       case "idle":
         return step;
       case "recover_tools":
-        await recover(state, step.calls);
+        await recover(state, step.calls, tools);
         break;
       case "run_tool":
-        await runTool(state, step.call, true);
+        await runTool(state, step.call, true, tools);
         break;
       case "call_model":
-        await callModel(state);
+        await callModel(state, toolSpecs([...tools.values()]));
         break;
     }
   }
 
-  async function callModel(state: TaskState): Promise<void> {
+  async function callModel(state: TaskState, specs: ToolSpec[]): Promise<void> {
     const exhausted = budgetExhausted(state, limits);
     if (exhausted) {
       deps.log.append(taskId, [
@@ -190,7 +196,11 @@ export async function runTask(
     deps.log.append(taskId, [{ type: "task.ended", data: { outcome: "failed", summary } }]);
   }
 
-  async function recover(state: TaskState, calls: readonly RunningCall[]): Promise<void> {
+  async function recover(
+    state: TaskState,
+    calls: readonly RunningCall[],
+    tools: ReadonlyMap<string, Tool>,
+  ): Promise<void> {
     for (const running of calls) {
       if (running.effect === "external") {
         deps.log.append(taskId, [
@@ -206,7 +216,7 @@ export async function runTask(
         continue;
       }
       const call = state.pendingCalls.find((c) => c.callId === running.callId);
-      if (call) await runTool(state, call, false);
+      if (call) await runTool(state, call, false, tools);
       if (signal.aborted) return;
     }
   }
@@ -215,8 +225,9 @@ export async function runTask(
     state: TaskState,
     call: ToolCallItem,
     writeStarted: boolean,
+    tools: ReadonlyMap<string, Tool>,
   ): Promise<void> {
-    const finish = (outcome: "ok" | "error", output: string, extra: EventDraft[] = []) =>
+    const finish = (outcome: ToolOutcome, output: string, extra: EventDraft[] = []) =>
       deps.log.append(taskId, [
         { type: "tool.finished", data: { callId: call.callId, outcome, content: text(output) } },
         ...extra,
@@ -262,7 +273,12 @@ export async function runTask(
 
     const tool = tools.get(call.name);
     if (!tool) {
-      finish("error", `Unknown tool "${call.name}". Available: ${[...tools.keys()].join(", ")}`);
+      if (deps.tools.some((t) => t.name === call.name)) {
+        finish("denied", `${call.name} is not granted to this task.`);
+      } else {
+        const known = [...tools.keys(), ...Object.keys(CONTROL_TOOLS)].join(", ");
+        finish("error", `Unknown tool "${call.name}". Available: ${known}`);
+      }
       return;
     }
     if (!args.ok) {
@@ -275,6 +291,35 @@ export async function runTask(
       return;
     }
 
+    const context = {
+      taskId,
+      workspace: deps.workspaceOf(taskId),
+      scratch: deps.scratchOf(taskId),
+      grant: state.grant,
+    };
+    if (tool.approval === "required") {
+      const answer = state.answers[call.callId];
+      if (!answer) {
+        deps.log.append(taskId, [
+          {
+            type: "attention.requested",
+            data: {
+              attentionId: deps.newId(),
+              kind: "approval",
+              prompt: tool.describe?.(parsed.data, context) ?? `${tool.name} ${call.arguments}`,
+              callId: call.callId,
+            },
+          },
+        ]);
+        return;
+      }
+      if (!answer.approved) {
+        const said = answer.response ? ` They said: ${answer.response}` : "";
+        finish("denied", `The user did not approve this call.${said}`);
+        return;
+      }
+    }
+
     if (writeStarted) {
       deps.log.append(taskId, [
         {
@@ -285,11 +330,7 @@ export async function runTask(
     }
     let output: { outcome: "ok" | "error"; text: string };
     try {
-      output = await tool.run(parsed.data, {
-        taskId,
-        workspace: deps.workspaceOf(taskId),
-        signal,
-      });
+      output = await tool.run(parsed.data, { ...context, signal });
     } catch (error) {
       output = { outcome: "error", text: `${tool.name} failed: ${message(error)}` };
     }
@@ -297,6 +338,15 @@ export async function runTask(
     if (signal.aborted) return;
     finish(output.outcome, output.text);
   }
+}
+
+/** The tools a task may use: every ordinary tool, and the privileged ones its Grant lists. */
+export function availableTools(tools: readonly Tool[], state: TaskState): Map<string, Tool> {
+  return new Map(
+    tools
+      .filter((tool) => !tool.privileged || state.grant.privilegedTools.includes(tool.name))
+      .map((tool) => [tool.name, tool]),
+  );
 }
 
 export function toolSpecs(tools: readonly Tool[]): ToolSpec[] {

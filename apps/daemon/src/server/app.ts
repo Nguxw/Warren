@@ -24,6 +24,7 @@ export interface AppDeps {
   token: string;
   /** Which secrets the daemon has, by name; never their values. */
   secrets: Record<string, boolean>;
+  sandbox: string;
   newId(): string;
   /** Interval for keep-alive comments on idle streams. */
   heartbeatMs?: number;
@@ -53,7 +54,9 @@ export function createApp(deps: AppDeps) {
     return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
   });
 
-  app.get("/health", (c) => c.json({ ok: true, pid: process.pid, secrets: deps.secrets }));
+  app.get("/health", (c) =>
+    c.json({ ok: true, pid: process.pid, secrets: deps.secrets, sandbox: deps.sandbox }),
+  );
 
   app.post("/tasks", async (c) => {
     const body = CreateTaskRequest.parse(await c.req.json());
@@ -77,9 +80,9 @@ export function createApp(deps: AppDeps) {
       instruction: body.instruction,
       grant: {
         workspace,
-        // No OS sandbox until M3: tool processes reach the network like any local program.
-        network: true,
-        privilegedTools: [],
+        network: body.network ?? config.tasks.network,
+        // With a repository, a task may hand its result back to it and propose it on GitHub.
+        privilegedTools: workspace.kind === "clone" ? ["publish_branch", "open_pull_request"] : [],
         budget: { maxModelCalls: DEFAULT_MAX_MODEL_CALLS, ...body.budget },
       },
       trigger: { source: "manual" },

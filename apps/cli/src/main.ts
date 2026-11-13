@@ -9,6 +9,7 @@ import {
   warrenPaths,
 } from "@warren/daemon";
 import type { TaskEvent, TaskSummary } from "@warren/protocol";
+import { seatbeltAvailable } from "@warren/tools";
 import { CliError, DaemonClient } from "./client.ts";
 import {
   bold,
@@ -31,12 +32,15 @@ Usage:
       --title <text>                   Task title
       --model <role>                   Model role from the config (default: main)
       --max-calls <n>                  Model call budget (default: 100)
+      --network                        Let the task's commands reach the network
       --detach                         Do not follow the task
   warren tasks [--all]               List tasks (default: not ended)
   warren show <id>                   Print a task's whole history
   warren follow <id>                 Follow a task until it needs you or stops
   warren send <id> <text…>           Send a message to a task and follow it
   warren answer <id> <text…>         Answer the task's open question and follow it
+  warren approve <id>                Approve the action the task is waiting on
+  warren deny <id> [reason…]         Decline it; the reason goes to the task
   warren pause|resume|cancel <id>    Control a task
   warren doctor                      Check the setup
 
@@ -46,7 +50,7 @@ interface TaskView {
   id: string;
   status: TaskSummary["status"];
   lastSeq: number;
-  attention: { attentionId: string; prompt: string }[];
+  attention: { attentionId: string; kind: "question" | "approval"; prompt: string }[];
   ended?: { outcome: "completed" | "failed" | "cancelled" };
   usage: Parameters<typeof renderUsage>[0];
 }
@@ -68,6 +72,10 @@ async function main(argv: string[]): Promise<number> {
       return send(rest);
     case "answer":
       return answer(rest);
+    case "approve":
+      return decide(rest, true);
+    case "deny":
+      return decide(rest, false);
     case "pause":
     case "resume":
     case "cancel":
@@ -118,6 +126,7 @@ async function run(args: string[]): Promise<number> {
       title: { type: "string" },
       model: { type: "string" },
       "max-calls": { type: "string" },
+      network: { type: "boolean" },
       detach: { type: "boolean" },
     },
   });
@@ -131,6 +140,7 @@ async function run(args: string[]): Promise<number> {
     ...(values.title && { title: values.title }),
     ...(values.model && { modelRole: values.model }),
     ...(maxCalls && { budget: { maxModelCalls: maxCalls } }),
+    ...(values.network && { network: true }),
   });
   if (values.detach) {
     console.log(shortId(task.id));
@@ -178,12 +188,27 @@ async function answer(args: string[]): Promise<number> {
   if (!id || words.length === 0) throw new CliError('usage: warren answer <id> "<answer>"');
   const api = client();
   const { task } = await api.request<{ task: TaskView }>("GET", `/tasks/${id}`);
-  const open = task.attention[0];
+  const open = task.attention.find((a) => a.kind === "question");
   if (!open) throw new CliError("this task has no open question");
   const { task: next } = await api.request<{ task: TaskView }>(
     "POST",
     `/tasks/${task.id}/attention/${open.attentionId}`,
     { response: words.join(" ") },
+  );
+  return follow(api, next.id, next.lastSeq);
+}
+
+async function decide(args: string[], approved: boolean): Promise<number> {
+  const [id, ...words] = args;
+  if (!id) throw new CliError(`usage: warren ${approved ? "approve" : "deny"} <id>`);
+  const api = client();
+  const { task } = await api.request<{ task: TaskView }>("GET", `/tasks/${id}`);
+  const open = task.attention.find((a) => a.kind === "approval");
+  if (!open) throw new CliError("this task is not waiting for an approval");
+  const { task: next } = await api.request<{ task: TaskView }>(
+    "POST",
+    `/tasks/${task.id}/attention/${open.attentionId}`,
+    { response: words.join(" "), approved },
   );
   return follow(api, next.id, next.lastSeq);
 }
@@ -253,7 +278,7 @@ async function doctor(): Promise<number> {
   console.log(dim(`home: ${paths.home}`));
   // A running daemon is the authority on which secrets are loaded: it may have them from its
   // own environment rather than the credentials file.
-  let health: { secrets?: Record<string, boolean> } | undefined;
+  let health: { secrets?: Record<string, boolean>; sandbox?: string } | undefined;
   let daemonError = "";
   try {
     health = await client().request("GET", "/health");
@@ -281,6 +306,14 @@ async function doctor(): Promise<number> {
       : `set it in ${paths.credentials}`;
     check(loaded, name, detail);
   }
+  const sandbox = health?.sandbox ?? (seatbeltAvailable() ? "seatbelt" : "none");
+  check(sandbox !== "none", "sandbox", sandbox === "none" ? "commands run unconfined" : sandbox);
+  const github = local.WARREN_GITHUB_TOKEN;
+  console.log(
+    `${github ? green("✓") : yellow("–")} WARREN_GITHUB_TOKEN${dim(
+      github ? `  ${maskSecret(github)}` : "  optional; needed to open pull requests",
+    )}`,
+  );
   check(Boolean(Bun.which("git")), "git");
   console.log(
     `${Bun.which("rg") ? green("✓") : yellow("–")} ripgrep${dim("  optional; search falls back to grep")}`,

@@ -1,7 +1,27 @@
 import type { TaskState } from "./task-state.ts";
 
+/** Rules for the privileged tools this task was granted, if any. */
+function privileged(state: TaskState): string {
+  const granted = state.grant.privilegedTools;
+  const lines: string[] = [];
+  if (granted.includes("publish_branch")) {
+    lines.push(
+      "- When your work is committed, call publish_branch so the user can review the branch in their repository.",
+    );
+  }
+  if (granted.includes("open_pull_request")) {
+    lines.push("- Open a pull request only when the task asks for one.");
+  }
+  if (granted.length > 0) {
+    lines.push(
+      "- Pushing, publishing and similar actions affect things outside the workspace. If such a call was interrupted, check the current state before trying again.",
+    );
+  }
+  return lines.length > 0 ? `\n${lines.join("\n")}` : "";
+}
+
 /**
- * The system instructions. They change only with the task's workspace, so the prefix stays
+ * The system instructions. They change only with the task's workspace and Grant, so the prefix stays
  * identical across a task's calls and providers can cache it.
  */
 export function systemPrompt(state: TaskState, workspace: string): string {
@@ -22,5 +42,5 @@ How to work:
 - When the task is done, call complete_task with a short summary: what changed, how it was verified, and anything left open.
 - If you cannot go on without a decision only the user can make, call ask_user with one concrete question. Do not ask about things you can find out yourself.
 - Report honestly. A partial result is reported as partial, a failure as a failure.
-- Keep messages short.`;
+- Keep messages short.${privileged(state)}`;
 }

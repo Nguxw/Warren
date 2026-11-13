@@ -19,11 +19,17 @@ export class Workspaces {
     return join(this.dirOf(taskId), "workspace");
   }
 
+  /** Temp files and tool caches; writable in the sandbox, but not part of the work. */
+  scratchOf(taskId: string): string {
+    return join(this.dirOf(taskId), "scratch");
+  }
+
   /** Creates the workspace once. Safe to call again: an existing workspace is kept. */
   async prepare(state: TaskState, signal: AbortSignal): Promise<void> {
+    mkdirSync(join(this.scratchOf(state.id), "tmp"), { recursive: true });
+    mkdirSync(join(this.scratchOf(state.id), "cache"), { recursive: true });
     const target = this.pathOf(state.id);
     if (existsSync(target)) return;
-    mkdirSync(this.dirOf(state.id), { recursive: true });
 
     const { workspace } = state.grant;
     if (workspace.kind === "none") {

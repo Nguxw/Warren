@@ -37,7 +37,7 @@ export class Scheduler {
     private readonly options: {
       store: TaskStore;
       workspaces: Workspaces;
-      loop: Omit<LoopDeps, "log" | "workspaceOf">;
+      loop: Omit<LoopDeps, "log" | "workspaceOf" | "scratchOf">;
       concurrency: number;
       logger?: Logger;
     },
@@ -121,7 +121,12 @@ export class Scheduler {
         this.again.delete(taskId);
         const step = await runTask(
           taskId,
-          { ...loop, log: store, workspaceOf: (id) => workspaces.pathOf(id) },
+          {
+            ...loop,
+            log: store,
+            workspaceOf: (id) => workspaces.pathOf(id),
+            scratchOf: (id) => workspaces.scratchOf(id),
+          },
           signal,
         );
         this.logger.info("task stopped", { taskId, step: step.kind });

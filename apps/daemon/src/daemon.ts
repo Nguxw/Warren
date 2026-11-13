@@ -1,13 +1,21 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { ModelResolver, Tool } from "@warren/core";
 import { DaemonInfo } from "@warren/protocol";
-import { builtinTools } from "@warren/tools";
-import { loadConfig } from "./config/config.ts";
+import {
+  builtinTools,
+  noSandbox,
+  openPullRequestTool,
+  publishBranchTool,
+  type Sandbox,
+  SeatbeltSandbox,
+  seatbeltAvailable,
+} from "@warren/tools";
+import { type Config, loadConfig } from "./config/config.ts";
 import { loadSecrets } from "./config/secrets.ts";
 import { warrenPaths } from "./paths.ts";
 import { modelResolver, providerClients, secretStatus } from "./runtime/models.ts";
 import { type Logger, Scheduler, stderrLogger } from "./runtime/scheduler.ts";
-import { Workspaces } from "./runtime/workspace.ts";
+import { branchName, Workspaces } from "./runtime/workspace.ts";
 import { createApp } from "./server/app.ts";
 import { Notifier } from "./server/notifier.ts";
 import { openDatabase } from "./store/database.ts";
@@ -49,6 +57,14 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
   const config = loadConfig(paths.config);
   const secrets = loadSecrets({ file: paths.credentials });
   const db = openDatabase(paths.database);
+  const sandbox = chooseSandbox(config.sandbox, paths.home, logger);
+  const tools = options.tools ?? [
+    ...builtinTools(sandbox),
+    ...[
+      publishBranchTool({ branchOf: branchName }),
+      openPullRequestTool({ branchOf: branchName, token: () => secrets.WARREN_GITHUB_TOKEN }),
+    ].map((tool) => ({ ...tool, approval: config.approvals[tool.name] ?? tool.approval }) as Tool),
+  ];
   const notifier = new Notifier();
   const store = new TaskStore(db, options.clock ?? systemClock, () => notifier.notify());
   const workspaces = new Workspaces(paths.tasks);
@@ -59,7 +75,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     logger,
     loop: {
       models: options.models ?? modelResolver(config.models, providerClients(secrets)),
-      tools: options.tools ?? builtinTools(),
+      tools,
       newId: () => Bun.randomUUIDv7(),
       sleep: options.sleep ?? abortableSleep,
     },
@@ -73,6 +89,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     config,
     token,
     secrets: secretStatus(config.models, secrets),
+    sandbox: sandbox.name,
     newId: () => Bun.randomUUIDv7(),
     ...(options.heartbeatMs && { heartbeatMs: options.heartbeatMs }),
   });
@@ -120,6 +137,18 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       return stopping;
     },
   };
+}
+
+function chooseSandbox(setting: Config["sandbox"], home: string, logger: Logger): Sandbox {
+  if (setting === "none") {
+    logger.info("sandbox disabled by config: tool commands run with the daemon's rights");
+    return noSandbox;
+  }
+  if (seatbeltAvailable()) return new SeatbeltSandbox({ warrenHome: home });
+  if (setting === "seatbelt")
+    throw new Error("config requires the Seatbelt sandbox, which is not available here");
+  logger.error("no OS sandbox on this platform: tool commands run with the daemon's rights");
+  return noSandbox;
 }
 
 /** Refuses to start next to a live daemon; a stale file from a crash is taken over. */

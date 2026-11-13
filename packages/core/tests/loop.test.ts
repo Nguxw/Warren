@@ -269,3 +269,98 @@ test("withCost prices cached input separately", () => {
   );
   expect(withCost(usage, undefined).costUsd).toBeUndefined();
 });
+
+describe("privileged tools", () => {
+  function push(approval: "required" | "auto") {
+    const tool = fakeTool("push", z.object({ branch: z.string() }), "external", () => "pushed");
+    return Object.assign(tool, {
+      privileged: true,
+      approval,
+      describe: ({ branch }: { branch: string }) => `Push ${branch} to origin`,
+    });
+  }
+  const granted = { ...testTask, grant: { ...testTask.grant, privilegedTools: ["push"] } };
+
+  test("a task without the grant neither sees nor runs the tool", async () => {
+    const tool = push("auto");
+    const model = new ScriptedModel([
+      reply(toolCall("push", { branch: "main" })),
+      reply(toolCall("complete_task", { summary: "could not push" })),
+    ]);
+    const deps = testDeps({ model, tools: [tool] });
+    deps.log.create("t1", testTask);
+
+    await runTask("t1", deps, never);
+    expect(model.requests[0]?.tools.map((t) => t.name)).not.toContain("push");
+    expect(tool.calls).toHaveLength(0);
+    expect(model.requests[1]?.items.at(-1)).toMatchObject({
+      type: "tool_result",
+      outcome: "denied",
+      content: [{ type: "text", text: "push is not granted to this task." }],
+    });
+  });
+
+  test("an auto-approved tool runs when granted", async () => {
+    const tool = push("auto");
+    const deps = testDeps({
+      model: new ScriptedModel([
+        reply(toolCall("push", { branch: "warren/1" })),
+        reply(toolCall("complete_task", { summary: "pushed" })),
+      ]),
+      tools: [tool],
+    });
+    deps.log.create("t1", granted);
+    expect(await runTask("t1", deps, never)).toEqual({ kind: "ended" });
+    expect(tool.calls).toEqual([{ branch: "warren/1" }]);
+  });
+
+  test("a required approval waits for a person, then runs", async () => {
+    const tool = push("required");
+    const deps = testDeps({
+      model: new ScriptedModel([
+        reply(toolCall("push", { branch: "warren/1" }, "p1")),
+        reply(toolCall("complete_task", { summary: "pushed" })),
+      ]),
+      tools: [tool],
+    });
+    deps.log.create("t1", granted);
+
+    expect(await runTask("t1", deps, never)).toMatchObject({
+      kind: "wait_for_person",
+      attention: [{ kind: "approval", prompt: "Push warren/1 to origin", callId: "p1" }],
+    });
+    expect(tool.calls).toHaveLength(0);
+    // Waiting for approval writes no tool.started: nothing has run yet.
+    expect(eventTypes(deps)).not.toContain("tool.started");
+
+    deps.log.append("t1", [
+      { type: "attention.resolved", data: { attentionId: "id_1", response: "", approved: true } },
+    ]);
+    expect(await runTask("t1", deps, never)).toEqual({ kind: "ended" });
+    expect(tool.calls).toHaveLength(1);
+  });
+
+  test("a declined approval reaches the model as denied, with the person's reason", async () => {
+    const tool = push("required");
+    const model = new ScriptedModel([
+      reply(toolCall("push", { branch: "warren/1" })),
+      reply(toolCall("complete_task", { summary: "left unpushed" })),
+    ]);
+    const deps = testDeps({ model, tools: [tool] });
+    deps.log.create("t1", granted);
+    await runTask("t1", deps, never);
+    deps.log.append("t1", [
+      {
+        type: "attention.resolved",
+        data: { attentionId: "id_1", response: "not before review", approved: false },
+      },
+    ]);
+
+    await runTask("t1", deps, never);
+    expect(tool.calls).toHaveLength(0);
+    expect(model.requests[1]?.items.at(-1)).toMatchObject({
+      outcome: "denied",
+      content: [{ text: "The user did not approve this call. They said: not before review" }],
+    });
+  });
+});

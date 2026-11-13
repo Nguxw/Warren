@@ -6,8 +6,12 @@
 - **可恢复**：每个任务是一份只追加的事件日志，进程崩溃、电脑休眠或重启后从日志接着执行，外部动作不会被重复执行。
 - **多模型**：内部使用与提供方无关的对话格式，通过适配器接入 OpenAI、OpenAI 兼容接口（DeepSeek、Qwen、Ollama）和 Anthropic。
 - **少打扰**：只在需要回答、需要审批、结果可用时通知你。
+- **有边界**：模型执行的命令跑在沙箱里，只能写自己的工作区，读不到凭证，网络按任务开关；对外动作由守护进程代为执行，可要求你审批。
 
-> 状态：开发中。M2 已完成：可以通过 CLI 让 Warren 在仓库的克隆里完成任务；在 200 个任务、519 次 `kill -9` 的混沌测试中，任务全部完成，外部动作无一重复执行。
+> 状态：开发中。M3 已完成：
+>
+> - 任务的命令在 macOS Seatbelt 沙箱里运行；push、开 PR 等动作由守护进程代为执行，可要求审批。
+> - 在 200 个任务、519 次 `kill -9` 的混沌测试中，任务全部完成，外部动作无一重复执行。
 
 ## 架构
 
@@ -25,7 +29,7 @@ protocol    事件格式 · 对话格式 · API 契约               （所有�
 | `packages/protocol` | 事件格式 v1、内部对话格式、Grant、API 契约 |
 | `packages/core` | 状态折叠、Agent 循环、各接口定义；不做任何 IO |
 | `packages/model` | 模型适配器：OpenAI Responses、OpenAI 兼容（DeepSeek、Qwen、Ollama 等） |
-| `packages/tools` | 内置工具：读写编辑文件、搜索、shell |
+| `packages/tools` | 内置工具、Seatbelt 沙箱、特权工具（发布分支、开 PR） |
 | `apps/daemon` | 守护进程：Store、调度器、工作区、HTTP API |
 | `apps/cli` | `warren` 命令 |
 | `evals` | 混沌测试（反复 `kill -9` 真实守护进程） |
@@ -52,14 +56,17 @@ bun install
 cd apps/cli && bun link && cd ../..   # 安装全局命令 warren
 
 warren daemon                         # 在一个终端里运行守护进程
-warren run --repo ~/code/app "修复 xxx 测试，然后提交"
+warren run --repo ~/code/app "修复 xxx 测试，提交并发布分支"
+warren run --network --repo . "…"     # 需要安装依赖等联网操作时
 warren tasks                          # 看还在进行的任务
 warren follow <id>                    # 跟随一个任务
 warren answer <id> "<回答>"           # 回答任务的问题
+warren approve <id>                   # 批准任务等待的动作（如开 PR）
+warren deny <id> "<原因>"             # 拒绝，原因会交给任务
 warren doctor                         # 检查配置
 ```
 
-任务在 `~/.warren/tasks/<id>/workspace` 里的独立克隆上工作，提交在 `warren/<短 id>` 分支上，你的仓库不会被改动。
+任务在 `~/.warren/tasks/<id>/workspace` 里的独立克隆上工作。完成后它把提交发布回你的仓库，作为 `warren/<短 id>` 分支；你的其他分支不会被改动。要让它开 PR，在 `~/.warren/credentials.env` 里配置 `WARREN_GITHUB_TOKEN`（建议使用只授权目标仓库的 fine-grained token）。
 
 ## 配置
 
@@ -101,6 +108,7 @@ chmod 600 ~/.warren/credentials.env
 - [002 循环与恢复](docs/002-loop-and-recovery.md)
 - [003 运行时](docs/003-runtime.md)
 - [004 测试与验证](docs/004-testing.md)
+- [005 安全边界](docs/005-security.md)
 
 ## 路线图
 

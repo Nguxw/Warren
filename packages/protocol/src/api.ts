@@ -26,6 +26,8 @@ export const CreateTaskRequest = z.object({
   repo: z.string().optional(),
   /** Model role from the config, such as `main` or `hard`. */
   modelRole: z.string().optional(),
+  /** Whether the task's commands may reach the network; default from the config (off). */
+  network: z.boolean().optional(),
   budget: Budget.optional(),
 });
 export type CreateTaskRequest = z.infer<typeof CreateTaskRequest>;

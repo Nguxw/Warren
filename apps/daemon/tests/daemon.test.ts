@@ -111,6 +111,50 @@ describe("daemon", () => {
     expect((await call("GET", `/tasks/${id.replaceAll("-", "").slice(-8)}`)).status).toBe(200);
   });
 
+  test("a repository task works sandboxed and publishes its branch back to the source", async () => {
+    const model = new ScriptedModel([
+      reply(
+        toolCall("write_file", { path: "notes.md", content: "# Notes\n" }),
+        toolCall("shell", {
+          command: "git add . && git -c user.name=w -c user.email=w@example.com commit -qm notes",
+        }),
+      ),
+      reply(toolCall("publish_branch", {})),
+      reply(toolCall("complete_task", { summary: "Added notes and published the branch" })),
+    ]);
+    const d = await start(model);
+    const call = api(d);
+    const id: string = (await call("POST", "/tasks", { instruction: "Add notes", repo })).body.task
+      .id;
+    await d.scheduler.idle();
+
+    const task = (await call("GET", `/tasks/${id}`)).body.task;
+    expect(task.ended).toMatchObject({ outcome: "completed" });
+    expect(task.grant).toMatchObject({
+      network: false,
+      privilegedTools: ["publish_branch", "open_pull_request"],
+    });
+    const head = Bun.spawnSync(["git", "rev-parse", "HEAD"], {
+      cwd: join(home, "tasks", id, "workspace"),
+    }).stdout.toString();
+    const published = Bun.spawnSync(["git", "rev-parse", `refs/heads/${branchName(id)}`], {
+      cwd: repo,
+    }).stdout.toString();
+    expect(published).toBe(head);
+    // The source's own branch is untouched.
+    expect(readFileSync(join(repo, "greet.ts"), "utf8")).not.toContain("notes");
+    expect(model.requests[0]?.tools.map((t) => t.name)).toContain("publish_branch");
+  });
+
+  test("a task without a repository gets no privileged tools; network can be requested", async () => {
+    const model = new ScriptedModel([reply(toolCall("complete_task", { summary: "ok" }))]);
+    const d = await start(model);
+    const created = await api(d)("POST", "/tasks", { instruction: "Think", network: true });
+    expect(created.body.task.grant).toMatchObject({ network: true, privilegedTools: [] });
+    await d.scheduler.idle();
+    expect(model.requests[0]?.tools.map((t) => t.name)).not.toContain("publish_branch");
+  });
+
   test("rejects bad requests clearly", async () => {
     const d = await start(new ScriptedModel());
     const call = api(d);

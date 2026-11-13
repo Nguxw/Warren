@@ -224,6 +224,7 @@ export function testDeps(
     models: { resolve: () => ({ client: model, model: "scripted-1" }) },
     tools: [],
     workspaceOf: () => "/tmp/warren-test-workspace",
+    scratchOf: () => "/tmp/warren-test-scratch",
     newId: () => `id_${++ids}`,
     sleep: async (ms) => {
       sleeps.push(ms);
