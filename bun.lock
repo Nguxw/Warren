@@ -33,6 +33,15 @@
         "zod": "^4.6.7",
       },
     },
+    "evals": {
+      "name": "@warren/evals",
+      "version": "0.0.0",
+      "dependencies": {
+        "@warren/core": "workspace:*",
+        "@warren/daemon": "workspace:*",
+        "@warren/protocol": "workspace:*",
+      },
+    },
     "packages/core": {
       "name": "@warren/core",
       "version": "0.0.0",
@@ -139,6 +148,8 @@
     "@warren/core": ["@warren/core@workspace:packages/core"],
 
     "@warren/daemon": ["@warren/daemon@workspace:apps/daemon"],
+
+    "@warren/evals": ["@warren/evals@workspace:evals"],
 
     "@warren/model": ["@warren/model@workspace:packages/model"],
 

@@ -7,16 +7,18 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 - `bun run check` — typecheck (tsc 7) + Biome lint + tests; must pass before committing
 - `bun test <path>` — run some tests
 - `bun run format` — apply Biome formatting
-- `WARREN_LIVE=1 bun test packages/model` — also run the real OpenAI API test
+- `WARREN_LIVE=1 bun test packages/model` — also run the real OpenAI API tests (both adapters)
+- `bun run chaos [iterations] [seed]` — SIGKILL the real daemon repeatedly and check invariants; never edit `.ts` files while it runs (children load source)
 - `bun apps/cli/src/main.ts <command>` — run the CLI from source; use `WARREN_HOME=<dir>` for a throwaway instance
 
 ## Layout and dependency rules
 
 - `packages/protocol` — event format, conversation items, Grant, API contract (zod). Depends on nothing internal.
 - `packages/core` — fold, nextStep, the agent loop, port interfaces (`ports.ts`), test doubles (`@warren/core/testing`). Depends only on `protocol` and zod; no IO, no Bun APIs.
-- Adapters implement `core` interfaces: `packages/model` (OpenAI Responses), `packages/tools` (built-in tools). Connectors come in M5.
+- Adapters implement `core` interfaces: `packages/model` (OpenAI Responses, OpenAI-compatible Chat Completions; shared error rules in `errors.ts`, shared contract tests in `tests/contract.test.ts`), `packages/tools` (built-in tools). Connectors come in M5.
+- `evals/` — chaos harness; the crash scenario lives in `@warren/core/testing` (`push-scenario.ts`) and is shared with `packages/core/tests/simulation.test.ts`.
 - `apps/daemon` is the composition root (`startDaemon`) and the only process that writes the database. `apps/cli` talks to it over HTTP using `daemon.json`.
-- Design docs: `docs/000`–`003`.
+- Design docs: `docs/000`–`004`.
 
 ## Rules that are expensive to break
 

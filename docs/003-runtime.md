@@ -42,7 +42,27 @@ warren CLI ──HTTP + SSE（127.0.0.1，带 token）──▶ warrend（单进
   - 用 Responses API，无状态运行（`store: false`），加密推理内容随对话回传。所以任务日志本身就足以继续任务，不依赖 OpenAI 服务端保存的会话。
   - SDK 自带的重试关闭，由循环统一决定重试策略。
   - `prompt_cache_key` 用任务 id，同一任务的请求前缀可以命中缓存。
-- **错误归一：** 408、409、429、5xx 和网络错误归为 `retryable`（遵守 `retry-after`）；上下文超长归为 `context_overflow`；额度用尽和其他 4xx 归为 `fatal`。
+- **OpenAI 兼容适配器**（`openai-compatible`）：
+  - 走 Chat Completions 协议，一个适配器覆盖 DeepSeek、Qwen、Ollama、vLLM 等。
+  - 同一次响应里的文本和多个工具调用，会合并成一条助手消息发送。
+  - DeepSeek 的 `reasoning_content` 会记进日志供查看，但不回传，这是这类接口在多轮对话之间的要求。
+  - DeepSeek 的缓存命中字段 `prompt_cache_hit_tokens` 也会被读出。
+- **错误归一：** 两个适配器共用一套规则（`packages/model/src/errors.ts`）。408、409、429、5xx 和网络错误归为 `retryable`（遵守 `retry-after`）；上下文超长归为 `context_overflow`；额度用尽和其他 4xx 归为 `fatal`。
+- **密钥：** 每个模型角色可以用 `apiKeySecret` 指定读取哪个密钥，名字必须是 `WARREN_<名称>_API_KEY` 或 `WARREN_<名称>_TOKEN` 的形式。不指定时，Responses 适配器用 `WARREN_OPENAI_API_KEY`，兼容适配器不用密钥（适合本地的 Ollama）。
+
+```json
+{
+  "models": {
+    "cheap": {
+      "provider": "openai-compatible",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "model": "deepseek-chat",
+      "apiKeySecret": "WARREN_DEEPSEEK_API_KEY"
+    },
+    "local": { "provider": "openai-compatible", "baseUrl": "http://localhost:11434/v1", "model": "qwen3" }
+  }
+}
+```
 
 ## 工具
 
@@ -75,7 +95,7 @@ warren CLI ──HTTP + SSE（127.0.0.1，带 token）──▶ warrend（单进
 | `POST /tasks/:id/input` | 发消息给任务，唤醒空闲的任务 |
 | `POST /tasks/:id/attention/:attentionId` | 回答问题 |
 | `POST /tasks/:id/pause`、`resume`、`cancel` | 控制任务 |
-| `GET /health` | 健康检查，以及守护进程加载了哪些密钥（只给名字，不给值） |
+| `GET /health` | 健康检查，以及配置中的模型需要的密钥是否已加载（只给名字和是否加载，不给值） |
 
 违反日志不变量的请求（比如给已结束的任务发消息）返回 409。
 

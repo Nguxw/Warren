@@ -3,9 +3,9 @@ import type { ModelResolver, Tool } from "@warren/core";
 import { DaemonInfo } from "@warren/protocol";
 import { builtinTools } from "@warren/tools";
 import { loadConfig } from "./config/config.ts";
-import { loadSecrets, SECRET_NAMES } from "./config/secrets.ts";
+import { loadSecrets } from "./config/secrets.ts";
 import { warrenPaths } from "./paths.ts";
-import { modelResolver, providerClients } from "./runtime/models.ts";
+import { modelResolver, providerClients, secretStatus } from "./runtime/models.ts";
 import { type Logger, Scheduler, stderrLogger } from "./runtime/scheduler.ts";
 import { Workspaces } from "./runtime/workspace.ts";
 import { createApp } from "./server/app.ts";
@@ -72,7 +72,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     notifier,
     config,
     token,
-    secrets: Object.fromEntries(SECRET_NAMES.map((name) => [name, Boolean(secrets[name])])),
+    secrets: secretStatus(config.models, secrets),
     newId: () => Bun.randomUUIDv7(),
     ...(options.heartbeatMs && { heartbeatMs: options.heartbeatMs }),
   });

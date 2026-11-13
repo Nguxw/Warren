@@ -105,6 +105,61 @@ export class MemoryTaskLog implements TaskLog {
   }
 }
 
+/** Thrown when a simulated process dies. Nothing the dead process does afterwards is kept. */
+export class Crash extends Error {
+  override name = "Crash";
+}
+
+/**
+ * A view of a `MemoryTaskLog` for one simulated process lifetime that dies after `crashAt`
+ * durable steps. A step is one committed append (atomic, as in the real store) or one effect
+ * a tool reports through `step()`, so a crash can fall between any two things that persist,
+ * including between an external effect and the event that records it.
+ */
+export class CrashingLog implements TaskLog {
+  steps = 0;
+  dead = false;
+
+  constructor(
+    private readonly inner: MemoryTaskLog,
+    private readonly crashAt?: number,
+  ) {}
+
+  get(taskId: string): TaskState | undefined {
+    if (this.dead) throw new Crash("dead process read the log");
+    return this.inner.get(taskId);
+  }
+
+  append(taskId: string, drafts: readonly EventDraft[]): TaskState {
+    if (this.dead) throw new Crash("dead process wrote the log");
+    const state = this.inner.append(taskId, drafts);
+    this.step();
+    return state;
+  }
+
+  /** Counts a durable step and dies here if this is the chosen point. */
+  step(): void {
+    if (this.dead) throw new Crash("dead process acted");
+    this.steps += 1;
+    if (this.crashAt !== undefined && this.steps >= this.crashAt) {
+      this.dead = true;
+      throw new Crash(`crashed after step ${this.steps}`);
+    }
+  }
+}
+
+/** A seeded PRNG (mulberry32) so random simulations replay exactly from their seed. */
+export function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export const testTask: EventOf<"task.created">["data"] = {
   title: "Test task",
   instruction: "Do the thing",
@@ -177,3 +232,4 @@ export function testDeps(
     ...rest,
   } as LoopDeps & { log: MemoryTaskLog; sleeps: number[] };
 }
+export * from "./push-scenario.ts";

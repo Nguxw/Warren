@@ -1,0 +1,14 @@
+{
+  "name": "@warren/evals",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "chaos": "bun chaos/run.ts"
+  },
+  "dependencies": {
+    "@warren/core": "workspace:*",
+    "@warren/daemon": "workspace:*",
+    "@warren/protocol": "workspace:*"
+  }
+}

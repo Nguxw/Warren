@@ -1,14 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
+import { OPENAI_KEY, SECRET_NAME } from "./secrets.ts";
 
 /**
  * `~/.warren/config.json`. Every field is optional; a missing file means all defaults.
  * Model roles in the file replace the default of the same name and keep the others.
  */
 
-export const ModelConfig = z.object({
-  /** Adapter id. Only `openai-responses` exists today; others arrive as new adapters. */
-  provider: z.literal("openai-responses").default("openai-responses"),
+const common = {
   model: z.string(),
   reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
   maxOutputTokens: z.number().int().positive().optional(),
@@ -20,8 +19,39 @@ export const ModelConfig = z.object({
       output: z.number().nonnegative(),
     })
     .optional(),
-});
+  /** Name of the secret holding the API key, such as WARREN_DEEPSEEK_API_KEY. */
+  apiKeySecret: z
+    .string()
+    .regex(SECRET_NAME, "must look like WARREN_<NAME>_API_KEY or WARREN_<NAME>_TOKEN")
+    .optional(),
+};
+
+export const ModelConfig = z.preprocess(
+  // `provider` may be left out and defaults to OpenAI's Responses API.
+  (value) =>
+    value && typeof value === "object" && !("provider" in value)
+      ? { ...value, provider: "openai-responses" }
+      : value,
+  z.discriminatedUnion("provider", [
+    z.object({
+      provider: z.literal("openai-responses"),
+      baseUrl: z.url().optional(),
+      ...common,
+    }),
+    z.object({
+      /** DeepSeek, Qwen, Ollama and other OpenAI-compatible Chat Completions endpoints. */
+      provider: z.literal("openai-compatible"),
+      baseUrl: z.url(),
+      ...common,
+    }),
+  ]),
+);
 export type ModelConfig = z.infer<typeof ModelConfig>;
+
+/** The secret a model needs, if any. Local OpenAI-compatible servers often need none. */
+export function secretOf(config: ModelConfig): string | undefined {
+  return config.apiKeySecret ?? (config.provider === "openai-responses" ? OPENAI_KEY : undefined);
+}
 
 /**
  * Defaults chosen for this project. Prices come from third-party reports and are not verified

@@ -38,6 +38,19 @@ describe("secrets", () => {
     );
   });
 
+  test("accepts any Warren key or token name, and nothing else", () => {
+    expect(
+      loadSecrets({
+        env: {
+          WARREN_DEEPSEEK_API_KEY: "ds",
+          WARREN_GITHUB_TOKEN: "gh",
+          WARREN_HOME: "/tmp/x",
+          WARREN_LIVE: "1",
+        },
+      }),
+    ).toEqual({ WARREN_DEEPSEEK_API_KEY: "ds", WARREN_GITHUB_TOKEN: "gh" });
+  });
+
   test("masks secrets for display", () => {
     expect(maskSecret("sk-proj-abcdefghijklmnopqrstuvwxyz1234")).toBe("sk-proj…1234");
     expect(maskSecret("short")).toBe("****");

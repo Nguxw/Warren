@@ -1,15 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 
 /**
- * Secrets Warren reads. Each has a Warren-specific name so Warren never shares a variable
- * (such as OPENAI_API_KEY) with other tools on the machine.
+ * Secrets Warren reads. Each has a Warren-specific name (`WARREN_…_API_KEY` or `WARREN_…_TOKEN`)
+ * so Warren never shares a variable such as OPENAI_API_KEY with other tools on the machine.
  *
  * Lookup order: the process environment, then `~/.warren/credentials.env` (mode 0600, outside
  * any repository). Secret values never go into the event log, the database or tool processes.
  */
-export const SECRET_NAMES = ["WARREN_OPENAI_API_KEY"] as const;
-export type SecretName = (typeof SECRET_NAMES)[number];
-export type Secrets = Partial<Record<SecretName, string>>;
+export const SECRET_NAME = /^WARREN_[A-Z0-9_]+_(API_KEY|TOKEN)$/;
+
+/** The secret the default models use. */
+export const OPENAI_KEY = "WARREN_OPENAI_API_KEY";
+
+export type Secrets = Record<string, string>;
 
 export function loadSecrets(options: {
   env?: Record<string, string | undefined>;
@@ -18,9 +21,10 @@ export function loadSecrets(options: {
   const { env = process.env, file } = options;
   const fromFile = file && existsSync(file) ? parseEnvFile(readFileSync(file, "utf8")) : {};
   const secrets: Secrets = {};
-  for (const name of SECRET_NAMES) {
-    const value = env[name] || fromFile[name];
-    if (value) secrets[name] = value;
+  for (const source of [fromFile, env]) {
+    for (const [name, value] of Object.entries(source)) {
+      if (SECRET_NAME.test(name) && value) secrets[name] = value;
+    }
   }
   return secrets;
 }

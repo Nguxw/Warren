@@ -7,7 +7,7 @@
 - **多模型**：内部使用与提供方无关的对话格式，通过适配器接入 OpenAI、OpenAI 兼容接口（DeepSeek、Qwen、Ollama）和 Anthropic。
 - **少打扰**：只在需要回答、需要审批、结果可用时通知你。
 
-> 状态：开发中。M1 已完成：可以通过 CLI 让 Warren 在仓库的克隆里完成任务，进程崩溃后能接着执行。
+> 状态：开发中。M2 已完成：可以通过 CLI 让 Warren 在仓库的克隆里完成任务；在 200 个任务、519 次 `kill -9` 的混沌测试中，任务全部完成，外部动作无一重复执行。
 
 ## 架构
 
@@ -24,10 +24,11 @@ protocol    事件格式 · 对话格式 · API 契约               （所有�
 |---|---|
 | `packages/protocol` | 事件格式 v1、内部对话格式、Grant、API 契约 |
 | `packages/core` | 状态折叠、Agent 循环、各接口定义；不做任何 IO |
-| `packages/model` | 模型适配器：OpenAI Responses |
+| `packages/model` | 模型适配器：OpenAI Responses、OpenAI 兼容（DeepSeek、Qwen、Ollama 等） |
 | `packages/tools` | 内置工具：读写编辑文件、搜索、shell |
 | `apps/daemon` | 守护进程：Store、调度器、工作区、HTTP API |
 | `apps/cli` | `warren` 命令 |
+| `evals` | 混沌测试（反复 `kill -9` 真实守护进程） |
 
 依赖方向：`protocol` ← `core` ← 适配器 ← `apps/*`。只有 `apps/daemon` 负责组装。
 
@@ -40,6 +41,7 @@ bun install
 bun run check                               # 类型检查 + lint + 测试
 bun test                                    # 只跑测试
 WARREN_LIVE=1 bun test packages/model       # 加上真实 OpenAI API 测试（花费不到一美分）
+bun run chaos 200                           # 混沌测试：反复 kill -9 守护进程，检查不变量
 bun run format                              # 自动格式化
 ```
 
@@ -75,10 +77,20 @@ chmod 600 ~/.warren/credentials.env
 
 ```json
 {
-  "models": { "main": { "model": "gpt-6.1-sol", "reasoningEffort": "high" } },
+  "models": {
+    "main": { "model": "gpt-6.1-sol", "reasoningEffort": "high" },
+    "cheap": {
+      "provider": "openai-compatible",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "model": "deepseek-chat",
+      "apiKeySecret": "WARREN_DEEPSEEK_API_KEY"
+    }
+  },
   "concurrency": 3
 }
 ```
+
+`apiKeySecret` 指定的密钥同样写在 `~/.warren/credentials.env` 里。本地的 Ollama 不需要密钥。
 
 ## 设计文档
 
@@ -88,6 +100,7 @@ chmod 600 ~/.warren/credentials.env
 - [001 事件日志](docs/001-event-log.md)
 - [002 循环与恢复](docs/002-loop-and-recovery.md)
 - [003 运行时](docs/003-runtime.md)
+- [004 测试与验证](docs/004-testing.md)
 
 ## 路线图
 

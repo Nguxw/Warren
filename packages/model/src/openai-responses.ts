@@ -1,11 +1,12 @@
 import { type ModelClient, ModelError, type ModelRequest, type ModelResponse } from "@warren/core";
 import type { ConversationItem, ModelOutputItem, StopReason } from "@warren/protocol";
-import OpenAI, { APIConnectionError, APIError, APIUserAbortError } from "openai";
+import OpenAI from "openai";
 import type {
   Response,
   ResponseCreateParamsNonStreaming,
   ResponseInputItem,
 } from "openai/resources/responses/responses";
+import { classifyError } from "./errors.ts";
 
 /**
  * OpenAI Responses API adapter.
@@ -191,35 +192,6 @@ function stopReason(response: Response, items: ModelOutputItem[]): StopReason {
     return "other";
   }
   return "end_turn";
-}
-
-export function classifyError(error: unknown): ModelError {
-  if (error instanceof ModelError) return error;
-  if (error instanceof APIUserAbortError) return new ModelError("retryable", "request aborted");
-  if (error instanceof APIConnectionError) {
-    return new ModelError("retryable", `connection: ${error.message}`);
-  }
-  if (error instanceof APIError) {
-    const { status, code } = error;
-    const text = `${status ?? "?"} ${code ?? ""} ${error.message}`.replace(/\s+/g, " ").trim();
-    if (code === "context_length_exceeded" || /context (window|length)/i.test(error.message)) {
-      return new ModelError("context_overflow", text);
-    }
-    if (code === "insufficient_quota") return new ModelError("fatal", text);
-    if (status === 408 || status === 409 || status === 429 || (status ?? 0) >= 500) {
-      return new ModelError("retryable", text, retryAfterMs(error.headers));
-    }
-    return new ModelError("fatal", text);
-  }
-  return new ModelError("fatal", error instanceof Error ? error.message : String(error));
-}
-
-function retryAfterMs(headers: Headers | undefined): number | undefined {
-  const ms = Number(headers?.get("retry-after-ms"));
-  if (Number.isFinite(ms) && ms > 0) return ms;
-  const seconds = Number(headers?.get("retry-after"));
-  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
-  return undefined;
 }
 
 function joinText(parts: readonly { text: string }[]): string {

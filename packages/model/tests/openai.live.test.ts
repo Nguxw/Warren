@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ConversationItem } from "@warren/protocol";
-import { OpenAIResponsesClient } from "../src/index.ts";
+import { ChatCompletionsClient, OpenAIResponsesClient } from "../src/index.ts";
 
 /**
  * Calls the real OpenAI API. Off by default; run with `WARREN_LIVE=1 bun test packages/model`.
@@ -69,6 +69,57 @@ test.skipIf(!key)(
     const second = await client.complete({ ...request, items });
     expect(second.stopReason).toBe("end_turn");
     expect(second.items.some((item) => item.type === "message")).toBe(true);
+  },
+  120_000,
+);
+
+test.skipIf(!key)(
+  "the OpenAI-compatible adapter completes a tool round trip against a real endpoint",
+  async () => {
+    const client = new ChatCompletionsClient({
+      baseURL: "https://api.openai.com/v1",
+      apiKey: key as string,
+    });
+    const request = {
+      model: "gpt-6-luna",
+      // OpenAI's Chat Completions refuses function tools alongside reasoning for this model.
+      reasoningEffort: "none" as const,
+      instructions: "Use the tool, then answer in one short sentence.",
+      tools: [
+        {
+          name: "read_file",
+          description: "Read a text file",
+          parameters: {
+            type: "object",
+            properties: { path: { type: "string" } },
+            required: ["path"],
+          },
+        },
+      ],
+    };
+    const items: ConversationItem[] = [
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: "What is the first word of notes.txt?" }],
+      },
+    ];
+    const first = await client.complete({ ...request, items });
+    const call = first.items.find((item) => item.type === "tool_call");
+    expect(first.stopReason).toBe("tool_calls");
+    expect(call?.type === "tool_call" && JSON.parse(call.arguments)).toEqual({ path: "notes.txt" });
+    expect(first.usage.inputTokens).toBeGreaterThan(0);
+
+    items.push(...first.items, {
+      type: "tool_result",
+      callId: call?.type === "tool_call" ? call.callId : "",
+      outcome: "ok",
+      content: [{ type: "text", text: "Pineapple is the first word." }],
+    });
+    const second = await client.complete({ ...request, items });
+    expect(second.stopReason).toBe("end_turn");
+    const answer = second.items.find((item) => item.type === "message");
+    expect(answer?.type === "message" && answer.content[0]?.text).toContain("Pineapple");
   },
   120_000,
 );

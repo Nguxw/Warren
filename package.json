@@ -4,14 +4,16 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "evals"
   ],
   "scripts": {
     "check": "bun run typecheck && bun run lint && bun test",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test": "bun test"
+    "test": "bun test",
+    "chaos": "bun evals/chaos/run.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.7",

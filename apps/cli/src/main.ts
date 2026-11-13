@@ -1,6 +1,13 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
-import { loadConfig, loadSecrets, maskSecret, startDaemon, warrenPaths } from "@warren/daemon";
+import {
+  loadConfig,
+  loadSecrets,
+  maskSecret,
+  secretStatus,
+  startDaemon,
+  warrenPaths,
+} from "@warren/daemon";
 import type { TaskEvent, TaskSummary } from "@warren/protocol";
 import { CliError, DaemonClient } from "./client.ts";
 import {
@@ -255,27 +262,24 @@ async function doctor(): Promise<number> {
   }
   check(Boolean(health), "daemon running", daemonError);
 
-  const key = loadSecrets({ file: paths.credentials }).WARREN_OPENAI_API_KEY;
-  const daemonHasKey = health?.secrets?.WARREN_OPENAI_API_KEY;
-  if (daemonHasKey !== undefined) {
-    check(
-      daemonHasKey,
-      "WARREN_OPENAI_API_KEY",
-      daemonHasKey ? "loaded by the daemon" : `set it in ${paths.credentials}`,
-    );
-  } else {
-    check(
-      Boolean(key),
-      "WARREN_OPENAI_API_KEY",
-      key ? maskSecret(key) : `set it in ${paths.credentials}`,
-    );
-  }
+  let config: ReturnType<typeof loadConfig> | undefined;
   try {
-    const config = loadConfig(paths.config);
+    config = loadConfig(paths.config);
     const roles = Object.entries(config.models).map(([role, m]) => `${role}=${m.model}`);
     check(true, "config", roles.join("  "));
   } catch (error) {
     check(false, "config", error instanceof Error ? error.message : String(error));
+  }
+  // A running daemon knows which secrets it loaded; otherwise look at what this process sees.
+  const local = loadSecrets({ file: paths.credentials });
+  const needed = health?.secrets ?? (config ? secretStatus(config.models, local) : {});
+  for (const [name, loaded] of Object.entries(needed)) {
+    const detail = loaded
+      ? health
+        ? "loaded by the daemon"
+        : maskSecret(local[name] ?? "")
+      : `set it in ${paths.credentials}`;
+    check(loaded, name, detail);
   }
   check(Boolean(Bun.which("git")), "git");
   console.log(
