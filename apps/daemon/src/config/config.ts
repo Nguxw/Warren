@@ -98,6 +98,8 @@ const ConfigFile = z.object({
     .optional(),
   /** Per privileged tool: whether each call needs a person's approval. */
   approvals: z.record(z.string(), z.enum(["required", "auto"])).optional(),
+  /** Desktop notifications when a task needs you or finishes. */
+  notifications: z.boolean().optional(),
 });
 
 export interface Config {
@@ -107,6 +109,7 @@ export interface Config {
   sandbox: "auto" | "seatbelt" | "none";
   tasks: { network: boolean };
   approvals: Record<string, "required" | "auto">;
+  notifications: boolean;
 }
 
 export const DEFAULT_PORT = 7349;
@@ -117,7 +120,7 @@ export function loadConfig(file: string | undefined): Config {
   if (!parsed.success) {
     throw new Error(`invalid config ${file}:\n${z.prettifyError(parsed.error)}`);
   }
-  const { models, server, concurrency, sandbox, tasks, approvals } = parsed.data;
+  const { models, server, concurrency, sandbox, tasks, approvals, notifications } = parsed.data;
   return {
     models: { ...DEFAULT_MODELS, ...models },
     server: { host: server?.host ?? "127.0.0.1", port: server?.port ?? DEFAULT_PORT },
@@ -125,5 +128,6 @@ export function loadConfig(file: string | undefined): Config {
     sandbox: sandbox ?? "auto",
     tasks: { network: tasks?.network ?? false },
     approvals: approvals ?? {},
+    notifications: notifications ?? true,
   };
 }

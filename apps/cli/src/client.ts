@@ -12,7 +12,7 @@ const NOT_RUNNING = "Warren daemon is not running. Start it with: warren daemon"
 export class DaemonClient {
   constructor(
     readonly baseUrl: string,
-    private readonly token: string,
+    readonly token: string,
   ) {}
 
   static connect(home?: string): DaemonClient {

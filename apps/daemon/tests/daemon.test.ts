@@ -15,8 +15,10 @@ let root: string;
 let home: string;
 let repo: string;
 let daemon: RunningDaemon | undefined;
+let notifications: { title: string; body: string }[] = [];
 
 beforeEach(async () => {
+  notifications = [];
   root = mkdtempSync(join(tmpdir(), "warren-daemon-"));
   home = join(root, "home");
   repo = join(root, "repo");
@@ -45,6 +47,7 @@ async function start(model: ModelClient, tools?: Tool[]) {
     logger: quiet,
     sleep: async () => {},
     heartbeatMs: 200,
+    notify: (title, body) => notifications.push({ title, body }),
     ...(tools && { tools }),
   });
   return daemon;
@@ -248,6 +251,47 @@ describe("daemon", () => {
     expect(state?.history.find((i) => i.type === "tool_result")).toMatchObject({
       content: [{ type: "text", text: "built" }],
     });
+  });
+
+  test("notifies only when a task needs a person or finishes", async () => {
+    const model = new ScriptedModel([
+      reply(say("thinking"), toolCall("ask_user", { question: "Which port?" })),
+      reply(toolCall("complete_task", { summary: "Used 8080" })),
+    ]);
+    const d = await start(model);
+    const call = api(d);
+    const id = (await call("POST", "/tasks", { instruction: "Pick a port", title: "Port" })).body
+      .task.id;
+    await d.scheduler.idle();
+    expect(notifications).toEqual([{ title: "Has a question: Port", body: "Which port?" }]);
+
+    const listed = (await call("GET", "/tasks")).body.tasks[0];
+    expect(listed.attention).toEqual([
+      { attentionId: expect.any(String), kind: "question", prompt: "Which port?" },
+    ]);
+
+    await call("POST", `/tasks/${id}/attention/${listed.attention[0].attentionId}`, {
+      response: "8080",
+    });
+    await d.scheduler.idle();
+    expect(notifications.at(-1)).toEqual({ title: "Done: Port", body: "Used 8080" });
+    expect(notifications).toHaveLength(2);
+  });
+
+  test("answers only local host names, keeps its token, and reports the event cursor", async () => {
+    const first = await start(new ScriptedModel());
+    const evil = await fetch(`${first.url}/health`, {
+      headers: { Host: "attacker.example:7349", Authorization: `Bearer ${first.info.token}` },
+    });
+    expect(evil.status).toBe(403);
+    expect((await api(first)("GET", "/events/cursor")).body).toEqual({ id: 0 });
+    const token = first.info.token;
+    await first.stop();
+    daemon = undefined;
+
+    const second = await start(new ScriptedModel());
+    expect(second.info.token).toBe(token);
+    expect(token.length).toBeGreaterThanOrEqual(32);
   });
 
   test("refuses to start twice on the same home", async () => {

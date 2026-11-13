@@ -37,7 +37,17 @@ export function createApp(deps: AppDeps) {
   const heartbeatMs = deps.heartbeatMs ?? 10_000;
   const app = new Hono();
 
-  // Every route needs the token from daemon.json. `?token=` serves EventSource, which cannot
+  // Only local names may address the daemon, so a web page cannot reach it through DNS
+  // rebinding (its requests would carry the attacker's host name).
+  app.use("*", async (c, next) => {
+    const host = (c.req.header("host") ?? "").replace(/:\d+$/, "");
+    if (!["127.0.0.1", "localhost", "[::1]"].includes(host)) {
+      return c.json({ error: "forbidden host" }, 403);
+    }
+    await next();
+  });
+
+  // Every API route needs the token from daemon.json. `?token=` serves EventSource, which cannot
   // set headers.
   app.use("*", async (c, next) => {
     const header = c.req.header("authorization");
@@ -96,8 +106,17 @@ export function createApp(deps: AppDeps) {
     const status = c.req.query("status")?.split(",").filter(Boolean);
     const parsed = status ? z.array(TaskStatus).parse(status) : undefined;
     const limit = Number(c.req.query("limit") ?? 50);
-    return c.json({ tasks: store.list({ ...(parsed && { status: parsed }), limit }) });
+    const tasks = store.list({ ...(parsed && { status: parsed }), limit }).map((task) => {
+      if (task.status !== "waiting") return task;
+      const attention = (store.get(task.id)?.attention ?? []).map(
+        ({ attentionId, kind, prompt }) => ({ attentionId, kind, prompt }),
+      );
+      return { ...task, attention };
+    });
+    return c.json({ tasks });
   });
+
+  app.get("/events/cursor", (c) => c.json({ id: store.latestEventId() }));
 
   app.get("/tasks/:id", (c) => c.json({ task: view(load(c)) }));
 

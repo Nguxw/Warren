@@ -63,8 +63,8 @@ export class TaskStore {
   constructor(
     private readonly db: Database,
     private readonly clock: Clock = systemClock,
-    /** Called after every committed write, for example to wake event streams. */
-    private readonly onCommit: () => void = () => {},
+    /** Called after every committed write with its events, to wake streams and notify. */
+    private readonly onCommit: (events: TaskEvent[]) => void = () => {},
   ) {}
 
   create(taskId: string, data: EventOf<"task.created">["data"]): TaskState {
@@ -87,16 +87,17 @@ export class TaskStore {
         );
       this.insert(event);
       this.states.set(taskId, state);
-      return state;
+      return { state, event };
     })();
-    this.onCommit();
-    return created;
+    this.onCommit([created.event]);
+    return created.state;
   }
 
   /** Appends events in order and returns the task's new state. All or nothing. */
   append(taskId: string, drafts: readonly EventDraft[]): TaskState {
     if (drafts.length === 0) return this.require(taskId);
     let state: TaskState;
+    const committed: TaskEvent[] = [];
     try {
       state = this.db.transaction(() => {
         const current = this.require(taskId);
@@ -104,6 +105,7 @@ export class TaskStore {
           const event = this.build(taskId, current.lastSeq + 1, draft);
           applyEvent(current, event);
           this.insert(event);
+          committed.push(event);
         }
         this.db
           .query("UPDATE tasks SET status = ?, updated_at = ?, last_seq = ? WHERE id = ?")
@@ -115,7 +117,7 @@ export class TaskStore {
       this.states.delete(taskId);
       throw error;
     }
-    this.onCommit();
+    this.onCommit(committed);
     return state;
   }
 
@@ -149,6 +151,13 @@ export class TaskStore {
       )
       .all(taskId, afterSeq)
       .map(toEvent);
+  }
+
+  /** The global position of the latest event; streams start after it. */
+  latestEventId(): number {
+    return (
+      this.db.query<{ id: number | null }, []>("SELECT max(id) AS id FROM events").get()?.id ?? 0
+    );
   }
 
   /** Events of all tasks after a global position, for streaming to clients. */

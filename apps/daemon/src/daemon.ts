@@ -14,6 +14,7 @@ import { type Config, loadConfig } from "./config/config.ts";
 import { loadSecrets } from "./config/secrets.ts";
 import { warrenPaths } from "./paths.ts";
 import { modelResolver, providerClients, secretStatus } from "./runtime/models.ts";
+import { macNotify, type Notify, taskNotifications } from "./runtime/notifications.ts";
 import { type Logger, Scheduler, stderrLogger } from "./runtime/scheduler.ts";
 import { branchName, Workspaces } from "./runtime/workspace.ts";
 import { createApp } from "./server/app.ts";
@@ -33,6 +34,10 @@ export interface DaemonOptions {
   logger?: Logger;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   heartbeatMs?: number;
+  /** The web interface, served at `/` (an HTML import, bundled by Bun). */
+  ui?: Bun.HTMLBundle;
+  /** Desktop notifications; defaults to macOS Notification Center when the config enables it. */
+  notify?: Notify;
 }
 
 export interface RunningDaemon {
@@ -66,7 +71,16 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     ].map((tool) => ({ ...tool, approval: config.approvals[tool.name] ?? tool.approval }) as Tool),
   ];
   const notifier = new Notifier();
-  const store = new TaskStore(db, options.clock ?? systemClock, () => notifier.notify());
+  const notifications = config.notifications
+    ? taskNotifications(
+        (id) => store.get(id)?.title,
+        options.notify ?? (process.platform === "darwin" ? macNotify : () => {}),
+      )
+    : () => {};
+  const store: TaskStore = new TaskStore(db, options.clock ?? systemClock, (events) => {
+    notifier.notify();
+    notifications(events);
+  });
   const workspaces = new Workspaces(paths.tasks);
   const scheduler = new Scheduler({
     store,
@@ -81,7 +95,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     },
   });
 
-  const token = crypto.randomUUID();
+  const token = loadToken(paths.token);
   const app = createApp({
     store,
     scheduler,
@@ -99,6 +113,9 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     server = Bun.serve({
       hostname: config.server.host,
       port: options.port ?? config.server.port,
+      ...(options.ui && { routes: { "/": options.ui } }),
+      // Serve the bundled interface as built; no hot reload or dev tooling in the daemon.
+      development: false,
       fetch: app.fetch,
       // Streams send a keep-alive every 10 s; idle connections close after 30 s.
       idleTimeout: 30,
@@ -149,6 +166,21 @@ function chooseSandbox(setting: Config["sandbox"], home: string, logger: Logger)
     throw new Error("config requires the Seatbelt sandbox, which is not available here");
   logger.error("no OS sandbox on this platform: tool commands run with the daemon's rights");
   return noSandbox;
+}
+
+/**
+ * The API token, kept across restarts in `<home>/token` (mode 0600) so a browser or desktop shell
+ * stays signed in. Delete the file to rotate it.
+ */
+function loadToken(file: string): string {
+  if (existsSync(file)) {
+    const saved = readFileSync(file, "utf8").trim();
+    if (saved.length >= 32) return saved;
+  }
+  const token = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
+  writeFileSync(file, token, { mode: 0o600 });
+  chmodSync(file, 0o600);
+  return token;
 }
 
 /** Refuses to start next to a live daemon; a stale file from a crash is taken over. */

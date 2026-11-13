@@ -3,6 +3,7 @@ export * from "./config/secrets.ts";
 export * from "./daemon.ts";
 export * from "./paths.ts";
 export * from "./runtime/models.ts";
+export * from "./runtime/notifications.ts";
 export * from "./runtime/scheduler.ts";
 export * from "./runtime/workspace.ts";
 export * from "./server/app.ts";

@@ -8,10 +8,11 @@
 - **少打扰**：只在需要回答、需要审批、结果可用时通知你。
 - **有边界**：模型执行的命令跑在沙箱里，只能写自己的工作区，读不到凭证，网络按任务开关；对外动作由守护进程代为执行，可要求你审批。
 
-> 状态：开发中。M3 已完成：
+> 状态：开发中。M4 已完成：
 >
-> - 任务的命令在 macOS Seatbelt 沙箱里运行；push、开 PR 等动作由守护进程代为执行，可要求审批。
-> - 在 200 个任务、519 次 `kill -9` 的混沌测试中，任务全部完成，外部动作无一重复执行。
+> - 中英双语 Web 界面：收件箱、实时时间线、轨迹回放、审批。
+> - macOS 系统通知，launchd 开机常驻，单文件发布。
+> - 任务的命令在 Seatbelt 沙箱里运行；在 200 个任务、519 次 `kill -9` 的混沌测试中，任务全部完成，外部动作无一重复执行。
 
 ## 架构
 
@@ -31,7 +32,8 @@ protocol    事件格式 · 对话格式 · API 契约               （所有�
 | `packages/model` | 模型适配器：OpenAI Responses、OpenAI 兼容（DeepSeek、Qwen、Ollama 等） |
 | `packages/tools` | 内置工具、Seatbelt 沙箱、特权工具（发布分支、开 PR） |
 | `apps/daemon` | 守护进程：Store、调度器、工作区、HTTP API |
-| `apps/cli` | `warren` 命令 |
+| `apps/cli` | `warren` 命令，以及 launchd 服务 |
+| `apps/web` | Web 界面（React，由 Bun 打包，中英双语） |
 | `evals` | 混沌测试（反复 `kill -9` 真实守护进程） |
 
 依赖方向：`protocol` ← `core` ← 适配器 ← `apps/*`。只有 `apps/daemon` 负责组装。
@@ -46,6 +48,7 @@ bun run check                               # 类型检查 + lint + 测试
 bun test                                    # 只跑测试
 WARREN_LIVE=1 bun test packages/model       # 加上真实 OpenAI API 测试（花费不到一美分）
 bun run chaos 200                           # 混沌测试：反复 kill -9 守护进程，检查不变量
+bun run build                               # 编译成单文件 dist/warren（含界面）
 bun run format                              # 自动格式化
 ```
 
@@ -55,7 +58,8 @@ bun run format                              # 自动格式化
 bun install
 cd apps/cli && bun link && cd ../..   # 安装全局命令 warren
 
-warren daemon                         # 在一个终端里运行守护进程
+warren service install                # 开机常驻（launchd）；或者在终端里运行 warren daemon
+warren open                           # 打开 Web 界面
 warren run --repo ~/code/app "修复 xxx 测试，提交并发布分支"
 warren run --network --repo . "…"     # 需要安装依赖等联网操作时
 warren tasks                          # 看还在进行的任务
@@ -109,6 +113,7 @@ chmod 600 ~/.warren/credentials.env
 - [003 运行时](docs/003-runtime.md)
 - [004 测试与验证](docs/004-testing.md)
 - [005 安全边界](docs/005-security.md)
+- [006 界面与常驻](docs/006-interface.md)
 
 ## 路线图
 

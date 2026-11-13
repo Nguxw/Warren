@@ -17,6 +17,8 @@ export interface TaskSummary {
   createdAt: number;
   updatedAt: number;
   lastSeq: number;
+  /** What the task waits on, for tasks whose status is `waiting`. */
+  attention?: { attentionId: string; kind: "question" | "approval"; prompt: string }[];
 }
 
 export const CreateTaskRequest = z.object({

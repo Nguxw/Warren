@@ -13,7 +13,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "bun test",
-    "chaos": "bun evals/chaos/run.ts"
+    "chaos": "bun evals/chaos/run.ts",
+    "build": "bun build --compile --minify --sourcemap apps/cli/src/main.ts --outfile dist/warren"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.7",

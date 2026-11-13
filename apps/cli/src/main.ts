@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import {
   loadConfig,
@@ -10,6 +11,7 @@ import {
 } from "@warren/daemon";
 import type { TaskEvent, TaskSummary } from "@warren/protocol";
 import { seatbeltAvailable } from "@warren/tools";
+import ui from "@warren/web/index.html";
 import { CliError, DaemonClient } from "./client.ts";
 import {
   bold,
@@ -22,11 +24,15 @@ import {
   shortId,
   yellow,
 } from "./render.ts";
+import { installService, plistPath, serviceStatus, uninstallService } from "./service.ts";
 
 const HELP = `warren — a local, long-running agent
 
 Usage:
   warren daemon                      Run the daemon in the foreground
+  warren open                        Open the web interface
+  warren service install|uninstall|status
+                                     Run the daemon at login with launchd
   warren run <instruction…>          Start a task and follow it
       --repo <path>                    Work in a clone of this git repository
       --title <text>                   Task title
@@ -60,6 +66,10 @@ async function main(argv: string[]): Promise<number> {
   switch (command) {
     case "daemon":
       return daemon();
+    case "open":
+      return open();
+    case "service":
+      return service(rest);
     case "run":
       return run(rest);
     case "tasks":
@@ -104,7 +114,7 @@ function one(args: string[], command: string): string {
 }
 
 async function daemon(): Promise<number> {
-  const running = await startDaemon();
+  const running = await startDaemon({ ui });
   console.error(
     `${bold("Warren daemon")} listening on ${running.url} ${dim(`(${warrenPaths().home})`)}`,
   );
@@ -115,6 +125,46 @@ async function daemon(): Promise<number> {
   console.error(dim("stopping…"));
   await running.stop();
   return 0;
+}
+
+async function open(): Promise<number> {
+  const api = client();
+  await api.request("GET", "/health");
+  // The token travels in the fragment, which browsers never send to the server.
+  const url = `${api.baseUrl}/#token=${encodeURIComponent(api.token)}`;
+  if (process.platform === "darwin") Bun.spawnSync(["/usr/bin/open", url]);
+  else console.log(url);
+  console.log(`Opened ${api.baseUrl}`);
+  return 0;
+}
+
+async function service(args: string[]): Promise<number> {
+  const [action] = args;
+  switch (action) {
+    case "install": {
+      const file = installService();
+      console.log(`${green("✓")} installed ${file}`);
+      const log = join(warrenPaths().logs, "daemon.log");
+      console.log(dim(`  The daemon now starts at login and restarts if it exits. Logs: ${log}`));
+      return 0;
+    }
+    case "uninstall":
+      console.log(uninstallService() ? `${green("✓")} removed ${plistPath()}` : "not installed");
+      return 0;
+    case "status": {
+      const status = serviceStatus();
+      console.log(
+        status.running
+          ? `${green("running")} (pid ${status.pid})`
+          : status.installed
+            ? yellow("installed, not running")
+            : "not installed",
+      );
+      return status.running ? 0 : 1;
+    }
+    default:
+      throw new CliError("usage: warren service install|uninstall|status");
+  }
 }
 
 async function run(args: string[]): Promise<number> {

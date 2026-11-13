@@ -1,0 +1,606 @@
+:root {
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --sidebar: #efefec;
+  --text: #1d1d1b;
+  --muted: #6d6d68;
+  --line: #e1e1dc;
+  --accent: #3b5bdb;
+  --accent-text: #ffffff;
+  --accent-soft: #e8edff;
+  --ok: #2f7d4f;
+  --ok-soft: #e5f4ea;
+  --warn: #9a6400;
+  --warn-soft: #fbf1dc;
+  --bad: #b3261e;
+  --bad-soft: #fbe7e5;
+  --code: #f2f2ef;
+  --radius: 10px;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --panel: #1e1e1c;
+    --sidebar: #121211;
+    --text: #ecece8;
+    --muted: #9a9a93;
+    --line: #2e2e2b;
+    --accent: #7c96ff;
+    --accent-text: #0e1020;
+    --accent-soft: #232a45;
+    --ok: #6cc28f;
+    --ok-soft: #1d2e23;
+    --warn: #e2b04a;
+    --warn-soft: #33291a;
+    --bad: #f0857c;
+    --bad-soft: #3a1f1d;
+    --code: #252522;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font:
+    14px / 1.5 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+button.danger {
+  color: var(--bad);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+textarea {
+  resize: vertical;
+}
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.muted {
+  color: var(--muted);
+}
+.error {
+  color: var(--bad);
+}
+.pad {
+  padding: 0 16px;
+}
+
+/* ------------------------------------------------------------ layout */
+
+.app {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  height: 100%;
+}
+
+.sidebar {
+  background: var(--sidebar);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  font-weight: 700;
+  font-size: 16px;
+}
+.logo {
+  color: var(--accent);
+}
+.lang {
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 99px;
+}
+.sandbox {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ok);
+  background: var(--ok-soft);
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+.sandbox.off {
+  color: var(--bad);
+  background: var(--bad-soft);
+}
+
+.new-task {
+  margin: 0 16px 12px;
+}
+
+.main {
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------ inbox */
+
+.inbox section {
+  padding: 4px 8px 12px;
+}
+.inbox h3 {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.count {
+  font-weight: 400;
+}
+.inbox ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.task-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 8px;
+  border-radius: 8px;
+}
+.task-row:hover {
+  background: var(--panel);
+}
+.task-row.selected {
+  background: var(--panel);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-attention {
+  font-size: 12px;
+  color: var(--warn);
+  padding-left: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-meta {
+  font-size: 11px;
+  color: var(--muted);
+  padding-left: 16px;
+}
+
+.status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.status-dot.waiting {
+  background: var(--warn);
+}
+.status-dot.active {
+  background: var(--accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.status-dot.ended {
+  background: var(--line);
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ------------------------------------------------------------ task */
+
+.task,
+.new-task-form,
+.empty {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 24px 48px;
+}
+
+.task-header {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.title-row h1 {
+  font-size: 20px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--code);
+  color: var(--muted);
+}
+.pill.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.pill.waiting {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.attention-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.attention {
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.attention-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--warn);
+}
+.attention-prompt {
+  margin: 4px 0 10px;
+  font-size: 15px;
+  white-space: pre-wrap;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.replay {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.replay label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.replay label span {
+  flex: none;
+  min-width: 96px;
+}
+.replay input {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* ------------------------------------------------------------ timeline */
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+/* Long single-line previews must not widen the column: grid and flex items shrink below content. */
+.timeline > li,
+.main,
+.task {
+  min-width: 0;
+}
+
+.bubble {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+.bubble p {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.who {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.bubble.instruction {
+  border-left: 3px solid var(--accent);
+}
+.bubble.user {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.bubble.attention-entry {
+  border-color: var(--warn);
+}
+.resolution {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.reasoning {
+  margin: 0;
+  padding: 0 14px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.tool {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 13px;
+}
+.tool summary {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.tool summary::-webkit-details-marker {
+  display: none;
+}
+.tool-status {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  color: var(--ok);
+}
+.tool.error .tool-status,
+.tool.denied .tool-status {
+  color: var(--bad);
+}
+.tool.interrupted .tool-status,
+.tool.awaiting-approval .tool-status {
+  color: var(--warn);
+}
+.tool.running .tool-status,
+.tool.pending .tool-status {
+  color: var(--muted);
+}
+.tool-name {
+  flex: none;
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.tool-args {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-io {
+  margin: 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--code);
+  font: 12px / 1.45 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.notice {
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+.notice.success {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.notice.error {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.notice.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.notice.info {
+  color: var(--muted);
+}
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 16px;
+  padding: 12px 0;
+  background: var(--bg);
+}
+.composer-closed {
+  margin-top: 16px;
+}
+
+/* ------------------------------------------------------------ forms, empty states */
+
+.new-task-form {
+  display: grid;
+  gap: 14px;
+}
+.new-task-form h2 {
+  margin: 0;
+}
+.new-task-form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+.new-task-form .row {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+}
+.new-task-form .row label {
+  flex: 1;
+}
+.new-task-form label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+.new-task-form label.check input {
+  width: auto;
+}
+
+.empty {
+  padding-top: 15vh;
+  text-align: center;
+}
+.signin {
+  max-width: 420px;
+  margin: 18vh auto;
+  padding: 0 16px;
+  text-align: center;
+}
+.signin pre {
+  background: var(--code);
+  padding: 10px;
+  border-radius: 8px;
+  font-family: var(--mono);
+}
+
+@media (max-width: 760px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .sidebar {
+    max-height: 40vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .task,
+  .new-task-form,
+  .empty {
+    padding: 16px;
+  }
+  .new-task-form .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

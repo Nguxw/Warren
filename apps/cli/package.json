@@ -9,6 +9,7 @@
   "dependencies": {
     "@warren/daemon": "workspace:*",
     "@warren/protocol": "workspace:*",
-    "@warren/tools": "workspace:*"
+    "@warren/tools": "workspace:*",
+    "@warren/web": "workspace:*"
   }
 }

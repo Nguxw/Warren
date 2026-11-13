@@ -77,6 +77,7 @@ const daemon = await startDaemon({
   tools,
   logger: { info() {}, error() {} },
   sleep: async () => {},
+  notify: () => {},
 });
 
 if (!daemon.store.get(TASK_ID)) {

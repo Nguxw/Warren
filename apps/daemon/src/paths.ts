@@ -19,6 +19,8 @@ export function warrenPaths(home = warrenHome()) {
     config: join(home, "config.json"),
     /** Where a running daemon tells clients its port and token. */
     daemonInfo: join(home, "daemon.json"),
+    /** The API token, stable across restarts. */
+    token: join(home, "token"),
     /** One directory per task: its workspace clone and large tool outputs. */
     tasks: join(home, "tasks"),
     logs: join(home, "logs"),
