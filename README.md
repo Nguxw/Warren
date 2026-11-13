@@ -39,6 +39,18 @@ bun test          # 只跑测试
 bun run format    # 自动格式化
 ```
 
+## 配置
+
+Warren 只读取自己专用的变量名，不与其他工具共用 `OPENAI_API_KEY` 等变量。查找顺序：进程环境变量，然后是 `~/.warren/credentials.env`（权限 0600，位于任何仓库之外）。
+
+```sh
+mkdir -p ~/.warren && chmod 700 ~/.warren
+echo 'WARREN_OPENAI_API_KEY=<your key>' > ~/.warren/credentials.env
+chmod 600 ~/.warren/credentials.env
+```
+
+密钥不会写入事件日志、数据库或工具子进程的环境变量。
+
 ## 设计文档
 
 按编号阅读，每篇只依赖前面的内容。
