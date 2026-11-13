@@ -41,6 +41,12 @@ export const ModelConfig = z.preprocess(
       ...common,
     }),
     z.object({
+      /** Anthropic's Messages API (Claude models). */
+      provider: z.literal("anthropic"),
+      baseUrl: z.url().optional(),
+      ...common,
+    }),
+    z.object({
       /** DeepSeek, Qwen, Ollama and other OpenAI-compatible Chat Completions endpoints. */
       provider: z.literal("openai-compatible"),
       baseUrl: z.url(),
@@ -52,7 +58,10 @@ export type ModelConfig = z.infer<typeof ModelConfig>;
 
 /** The secret a model needs, if any. Local OpenAI-compatible servers often need none. */
 export function secretOf(config: ModelConfig): string | undefined {
-  return config.apiKeySecret ?? (config.provider === "openai-responses" ? OPENAI_KEY : undefined);
+  if (config.apiKeySecret) return config.apiKeySecret;
+  if (config.provider === "openai-responses") return OPENAI_KEY;
+  if (config.provider === "anthropic") return "WARREN_ANTHROPIC_API_KEY";
+  return undefined;
 }
 
 /**

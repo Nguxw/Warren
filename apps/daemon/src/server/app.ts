@@ -14,6 +14,7 @@ import { z } from "zod";
 import type { Config } from "../config/config.ts";
 import type { WorkspaceDiff } from "../runtime/diff.ts";
 import type { Scheduler } from "../runtime/scheduler.ts";
+import { computeStats } from "../runtime/stats.ts";
 import { type TaskStore, UnknownTaskError } from "../store/task-store.ts";
 import type { TriggerStore } from "../store/trigger-store.ts";
 import type { Notifier } from "./notifier.ts";
@@ -132,6 +133,14 @@ export function createApp(deps: AppDeps) {
   app.get("/triggers", (c) => {
     const limit = Number(c.req.query("limit") ?? 100);
     return c.json({ triggers: deps.triggers?.list(limit) ?? [] });
+  });
+
+  app.get("/stats", (c) => {
+    const states = store
+      .list({ limit: 100_000 })
+      .map((task) => store.get(task.id))
+      .filter((state): state is TaskState => Boolean(state));
+    return c.json({ stats: computeStats(states, deps.triggers?.list(100_000) ?? []) });
   });
 
   app.get("/events/cursor", (c) => c.json({ id: store.latestEventId() }));

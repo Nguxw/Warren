@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { type ModelClient, ModelError, type ModelRequest } from "@warren/core";
-import { ChatCompletionsClient, OpenAIResponsesClient } from "../src/index.ts";
+import { AnthropicClient, ChatCompletionsClient, OpenAIResponsesClient } from "../src/index.ts";
 
 /**
  * The contract every model adapter keeps, run against a local fake of each provider's HTTP API.
@@ -122,6 +122,44 @@ const fixtures: Fixture[] = [
     sentInstructions: (body) =>
       (body.messages as { role: string; content: string }[]).find((m) => m.role === "system")
         ?.content,
+  },
+  {
+    name: "anthropic",
+    client: (baseURL) =>
+      new AnthropicClient({ apiKey: "k", baseURL: baseURL.replace(/\/v1$/, "") }),
+    path: "/v1/messages",
+    toolCall: (id, name, args) => ({
+      id: "msg",
+      type: "message",
+      role: "assistant",
+      model: "m",
+      content: [{ type: "tool_use", id, name, input: JSON.parse(args) }],
+      stop_reason: "tool_use",
+      usage: {
+        input_tokens: usage.input - usage.cached,
+        cache_read_input_tokens: usage.cached,
+        cache_creation_input_tokens: 0,
+        output_tokens: usage.output,
+      },
+    }),
+    text: (text) => ({
+      id: "msg",
+      type: "message",
+      role: "assistant",
+      model: "m",
+      content: [{ type: "text", text }],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }),
+    sentToolResult: (body) => {
+      const messages = body.messages as {
+        role: string;
+        content: { type: string; content?: string }[];
+      }[];
+      return messages.flatMap((m) => m.content).findLast((block) => block.type === "tool_result")
+        ?.content;
+    },
+    sentInstructions: (body) => body.system as string,
   },
 ];
 

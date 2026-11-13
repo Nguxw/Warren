@@ -1,5 +1,5 @@
 import type { ModelClient, ModelResolver } from "@warren/core";
-import { ChatCompletionsClient, OpenAIResponsesClient } from "@warren/model";
+import { AnthropicClient, ChatCompletionsClient, OpenAIResponsesClient } from "@warren/model";
 import { type ModelConfig, secretOf } from "../config/config.ts";
 import type { Secrets } from "../config/secrets.ts";
 
@@ -25,6 +25,12 @@ export function providerClients(secrets: Secrets): ClientFactory {
     switch (config.provider) {
       case "openai-responses":
         client = new OpenAIResponsesClient({
+          apiKey: apiKey ?? "",
+          ...(config.baseUrl && { baseURL: config.baseUrl }),
+        });
+        break;
+      case "anthropic":
+        client = new AnthropicClient({
           apiKey: apiKey ?? "",
           ...(config.baseUrl && { baseURL: config.baseUrl }),
         });

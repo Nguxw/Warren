@@ -8,6 +8,7 @@ export * from "./runtime/intake.ts";
 export * from "./runtime/models.ts";
 export * from "./runtime/notifications.ts";
 export * from "./runtime/scheduler.ts";
+export * from "./runtime/stats.ts";
 export * from "./runtime/workspace.ts";
 export * from "./server/app.ts";
 export * from "./store/database.ts";

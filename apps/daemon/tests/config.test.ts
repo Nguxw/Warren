@@ -62,6 +62,18 @@ describe("loadConfig", () => {
     expect(secretOf(config.models.local as never)).toBeUndefined();
   });
 
+  test("an Anthropic role reads its own key", () => {
+    const config = loadConfig(
+      write({ models: { hard: { provider: "anthropic", model: "claude-opus-5-5" } } }),
+    );
+    expect(secretOf(config.models.hard as never)).toBe("WARREN_ANTHROPIC_API_KEY");
+    const resolver = modelResolver(
+      config.models,
+      providerClients({ WARREN_ANTHROPIC_API_KEY: "k" }),
+    );
+    expect(resolver.resolve("hard").client.provider).toBe("anthropic");
+  });
+
   test("rejects a compatible provider without baseUrl and unsafe secret names", () => {
     expect(() =>
       loadConfig(write({ models: { x: { provider: "openai-compatible", model: "m" } } })),

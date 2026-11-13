@@ -5,6 +5,7 @@ import {
   loadConfig,
   loadSecrets,
   maskSecret,
+  type Stats,
   secretStatus,
   startDaemon,
   warrenPaths,
@@ -50,6 +51,7 @@ Usage:
   warren deny <id> [reason…]         Decline it; the reason goes to the task
   warren pause|resume|cancel <id>    Control a task
   warren triggers [--limit n]        Events from GitHub and what Warren decided
+  warren stats                       Outcomes, cost, time and interruptions across tasks
   warren doctor                      Check the setup
 
 Ids can be shortened to the 8 characters \`warren tasks\` shows.`;
@@ -96,6 +98,8 @@ async function main(argv: string[]): Promise<number> {
       return doctor();
     case "triggers":
       return triggers(rest);
+    case "stats":
+      return stats();
     case undefined:
     case "help":
     case "--help":
@@ -332,6 +336,32 @@ async function triggers(args: string[]): Promise<number> {
     return 0;
   }
   for (const record of list) console.log(renderTrigger(record));
+  return 0;
+}
+
+async function stats(): Promise<number> {
+  const { stats: s } = await client().request<{ stats: Stats }>("GET", "/stats");
+  const pct = (v: number | null) => (v === null ? "–" : `${Math.round(v * 100)}%`);
+  const usd = (v: number | null) => (v === null ? "–" : `$${v.toFixed(4)}`);
+  const minutes = (v: number | null) => (v === null ? "–" : `${(v / 60_000).toFixed(1)} min`);
+  const num = (v: number | null) => (v === null ? "–" : v.toFixed(1));
+  console.log(bold("Tasks"));
+  console.log(
+    `  ${s.tasks.total} total · ${s.tasks.open} open · ${green(`${s.tasks.completed} completed`)} · ${red(`${s.tasks.failed} failed`)} · ${s.tasks.cancelled} cancelled · success ${pct(s.tasks.successRate)}`,
+  );
+  console.log(bold("Per ended task"));
+  console.log(
+    `  median cost ${usd(s.perEndedTask.medianCostUsd)} · median time ${minutes(s.perEndedTask.medianDurationMs)} · ${num(s.perEndedTask.meanModelCalls)} model calls · ${num(s.perEndedTask.meanInterruptions)} interruptions`,
+  );
+  console.log(bold("Usage"));
+  console.log(
+    `  $${s.usage.costUsd.toFixed(4)} · ${s.usage.modelCalls} calls · cache hit ${pct(s.usage.cacheHitRate)} · ${s.usage.compactions} compactions`,
+  );
+  if (s.triggers.total > 0) {
+    const parts = Object.entries(s.triggers.byDecision).map(([k, v]) => `${k} ${v}`);
+    console.log(bold("GitHub events"));
+    console.log(`  ${s.triggers.total} · ${parts.join(" · ")}`);
+  }
   return 0;
 }
 

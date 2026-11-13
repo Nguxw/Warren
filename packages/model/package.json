@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@warren/core": "workspace:*",
     "@warren/protocol": "workspace:*",
     "openai": "^7.56.0"

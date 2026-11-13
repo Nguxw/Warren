@@ -72,6 +72,8 @@ export interface TaskState {
   usage: UsageTotals;
   modelFailuresInARow: number;
   compactions: number;
+  /** How often the task needed a person: questions asked, approvals requested. */
+  asked: { questions: number; approvals: number };
 }
 
 export class LogInvariantError extends Error {
@@ -123,6 +125,7 @@ export function createState(event: TaskEvent): TaskState {
     },
     modelFailuresInARow: 0,
     compactions: 0,
+    asked: { questions: 0, approvals: 0 },
   };
 }
 
@@ -197,6 +200,8 @@ export function applyEvent(state: TaskState, event: TaskEvent): void {
       if (callId !== undefined && !state.pendingCalls.some((c) => c.callId === callId)) {
         fail(event, `no pending call ${callId}`);
       }
+      if (kind === "question") state.asked.questions += 1;
+      else state.asked.approvals += 1;
       state.attention.push({
         attentionId,
         kind,
