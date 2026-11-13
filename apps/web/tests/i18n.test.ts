@@ -14,8 +14,8 @@ test("both languages fill in parameters, and every key exists in both", () => {
 test("statuses and relative times read naturally in each language", () => {
   const zh = translator("zh");
   const en = translator("en");
-  expect(statusLabel(zh, "waiting")).toBe("等你处理");
-  expect(statusLabel(en, "waiting")).toBe("needs you");
+  expect(statusLabel(zh, "waiting")).toBe("需要你");
+  expect(statusLabel(en, "waiting")).toBe("Needs you");
   expect(formatAgo(zh, 10_000)).toBe("刚刚");
   expect(formatAgo(zh, 5 * 60_000)).toBe("5 分钟前");
   expect(formatAgo(en, 3 * 3_600_000)).toBe("3h ago");

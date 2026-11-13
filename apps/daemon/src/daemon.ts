@@ -13,6 +13,7 @@ import {
 import { type Config, loadConfig } from "./config/config.ts";
 import { loadSecrets } from "./config/secrets.ts";
 import { warrenPaths } from "./paths.ts";
+import { workspaceDiff } from "./runtime/diff.ts";
 import { modelResolver, providerClients, secretStatus } from "./runtime/models.ts";
 import { macNotify, type Notify, taskNotifications } from "./runtime/notifications.ts";
 import { type Logger, Scheduler, stderrLogger } from "./runtime/scheduler.ts";
@@ -104,6 +105,17 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     token,
     secrets: secretStatus(config.models, secrets),
     sandbox: sandbox.name,
+    diff: async (task) => {
+      if (task.grant.workspace.kind !== "clone") return undefined;
+      const workspace = workspaces.pathOf(task.id);
+      if (!existsSync(workspace)) return undefined;
+      return workspaceDiff(
+        workspace,
+        workspaces.scratchOf(task.id),
+        sandbox,
+        AbortSignal.timeout(60_000),
+      );
+    },
     newId: () => Bun.randomUUIDv7(),
     ...(options.heartbeatMs && { heartbeatMs: options.heartbeatMs }),
   });

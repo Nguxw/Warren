@@ -17,6 +17,12 @@ export interface TaskSummary {
   createdAt: number;
   updatedAt: number;
   lastSeq: number;
+  /** Name of the repository the task works on, if any. */
+  repo?: string;
+  /** Its local path. */
+  repoPath?: string;
+  /** How an ended task ended. */
+  outcome?: "completed" | "failed" | "cancelled";
   /** What the task waits on, for tasks whose status is `waiting`. */
   attention?: { attentionId: string; kind: "question" | "approval"; prompt: string }[];
 }

@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ModelClient, Tool } from "@warren/core";
@@ -90,7 +98,8 @@ describe("daemon", () => {
     const created = await call("POST", "/tasks", { instruction: "Change the greeting", repo });
     expect(created.status).toBe(201);
     const id: string = created.body.task.id;
-    expect(created.body.task.title).toBe("repo: Change the greeting");
+    expect(created.body.task.title).toBe("Change the greeting");
+    expect((await call("GET", "/tasks")).body.tasks[0].repo).toBe("repo");
     await d.scheduler.idle();
 
     const task = (await call("GET", `/tasks/${id}`)).body.task;
@@ -147,6 +156,28 @@ describe("daemon", () => {
     // The source's own branch is untouched.
     expect(readFileSync(join(repo, "greet.ts"), "utf8")).not.toContain("notes");
     expect(model.requests[0]?.tools.map((t) => t.name)).toContain("publish_branch");
+
+    // The review diff shows committed and untracked changes, and runs nothing the model planted.
+    const workspace = join(home, "tasks", id, "workspace");
+    const marker = join(root, "pwned");
+    const evil = join(root, "evil.sh");
+    writeFileSync(evil, `#!/bin/sh\ntouch '${marker}'\n`);
+    chmodSync(evil, 0o755);
+    for (const key of ["diff.external", "core.fsmonitor", "diff.evil.textconv"]) {
+      Bun.spawnSync(["git", "config", key, evil], { cwd: workspace });
+    }
+    writeFileSync(join(workspace, ".gitattributes"), "* diff=evil\n");
+    writeFileSync(join(workspace, "draft.txt"), "not committed\n");
+
+    const diff = (await call("GET", `/tasks/${id}/diff`)).body.diff;
+    expect(diff.files).toEqual(
+      expect.arrayContaining([
+        { path: "notes.md", additions: 1, deletions: 0, status: "modified" },
+        { path: "draft.txt", additions: 1, deletions: 0, status: "untracked" },
+      ]),
+    );
+    expect(diff.patch).toContain("+# Notes");
+    expect(existsSync(marker)).toBe(false);
   });
 
   test("a task without a repository gets no privileged tools; network can be requested", async () => {

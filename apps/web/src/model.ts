@@ -237,3 +237,180 @@ export function argsPreview(args: string, max = 120): string {
 function joinText(parts: readonly { text: string }[]): string {
   return parts.map((part) => part.text).join("\n");
 }
+
+// ------------------------------------------------------------------ activity
+
+export type ToolEntry = Extract<KeyedEntry, { kind: "tool" }>;
+export type StepCategory = "inspect" | "edit" | "run" | "publish" | "other";
+
+const CATEGORIES: Record<string, StepCategory> = {
+  read_file: "inspect",
+  list_files: "inspect",
+  search: "inspect",
+  edit_file: "edit",
+  write_file: "edit",
+  shell: "run",
+  publish_branch: "publish",
+  open_pull_request: "publish",
+};
+
+export function categoryOf(tool: string): StepCategory {
+  return CATEGORIES[tool] ?? "other";
+}
+
+/**
+ * The activity feed: the conversation stays as it is, and every run of consecutive tool calls
+ * becomes one collapsible group summarised by what kind of work it did.
+ */
+export type Block =
+  | { kind: "entry"; key: string; entry: KeyedEntry }
+  | {
+      kind: "steps";
+      key: string;
+      tools: ToolEntry[];
+      counts: Partial<Record<StepCategory, number>>;
+      failed: number;
+      active: boolean;
+    };
+
+export function activity(entries: readonly KeyedEntry[]): Block[] {
+  const blocks: Block[] = [];
+  let group: Extract<Block, { kind: "steps" }> | undefined;
+  for (const entry of entries) {
+    if (entry.kind !== "tool") {
+      group = undefined;
+      blocks.push({ kind: "entry", key: entry.key, entry });
+      continue;
+    }
+    if (!group) {
+      group = { kind: "steps", key: entry.key, tools: [], counts: {}, failed: 0, active: false };
+      blocks.push(group);
+    }
+    group.tools.push(entry);
+    const category = categoryOf(entry.name);
+    group.counts[category] = (group.counts[category] ?? 0) + 1;
+    if (entry.status === "error" || entry.status === "denied" || entry.status === "interrupted") {
+      group.failed += 1;
+    }
+    if (
+      entry.status === "running" ||
+      entry.status === "pending" ||
+      entry.status === "awaiting approval"
+    ) {
+      group.active = true;
+    }
+  }
+  return blocks;
+}
+
+/** The call the task is working on right now, if any. */
+export function currentStep(entries: readonly KeyedEntry[]): ToolEntry | undefined {
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    const entry = entries[i];
+    if (entry?.kind === "tool" && (entry.status === "running" || entry.status === "pending")) {
+      return entry;
+    }
+  }
+  return undefined;
+}
+
+export interface Deliverables {
+  branch?: string;
+  pullRequest?: { number: number; url: string };
+}
+
+/** What the task handed back, read from its privileged tools' results. */
+export function deliverables(entries: readonly KeyedEntry[]): Deliverables {
+  const result: Deliverables = {};
+  for (const entry of entries) {
+    if (entry.kind !== "tool" || entry.status !== "ok" || !entry.output) continue;
+    const branch = / as branch (\S+?)\.?$/m.exec(entry.output)?.[1];
+    if (entry.name === "publish_branch" && branch) result.branch = branch;
+    const pr = /pull request #(\d+): (\S+)/.exec(entry.output);
+    if (entry.name === "open_pull_request" && pr?.[1] && pr[2]) {
+      result.pullRequest = { number: Number(pr[1]), url: pr[2] };
+    }
+    const open = /already open: (\S+\/pull\/(\d+))/.exec(entry.output);
+    if (entry.name === "open_pull_request" && open?.[1] && open[2]) {
+      result.pullRequest = { number: Number(open[2]), url: open[1] };
+    }
+  }
+  return result;
+}
+
+// ------------------------------------------------------------------ diff
+
+export interface DiffLine {
+  kind: "add" | "del" | "context" | "hunk";
+  text: string;
+  oldLine?: number;
+  newLine?: number;
+}
+
+export interface DiffFile {
+  path: string;
+  status: "added" | "deleted" | "modified" | "renamed";
+  additions: number;
+  deletions: number;
+  binary: boolean;
+  lines: DiffLine[];
+}
+
+/** Parses `git diff` output into files and numbered lines. */
+export function parseDiff(patch: string): DiffFile[] {
+  const files: DiffFile[] = [];
+  let file: DiffFile | undefined;
+  let oldLine = 0;
+  let newLine = 0;
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("diff --git ")) {
+      const path = /^diff --git a\/(.+?) b\/(.+)$/.exec(line)?.[2] ?? line.slice(11);
+      file = { path, status: "modified", additions: 0, deletions: 0, binary: false, lines: [] };
+      files.push(file);
+      continue;
+    }
+    if (!file) continue;
+    if (line.startsWith("new file mode")) file.status = "added";
+    else if (line.startsWith("deleted file mode")) file.status = "deleted";
+    else if (line.startsWith("rename to ")) {
+      file.status = "renamed";
+      file.path = line.slice(10);
+    } else if (line.startsWith("Binary files")) file.binary = true;
+    else if (line.startsWith("+++ ")) {
+      const target = line.slice(4);
+      if (target.startsWith("b/")) file.path = target.slice(2);
+    } else if (line.startsWith("--- ") || line.startsWith("index ")) {
+      // Header lines carry nothing the view needs.
+    } else if (line.startsWith("@@")) {
+      const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+      oldLine = Number(match?.[1] ?? 0);
+      newLine = Number(match?.[2] ?? 0);
+      file.lines.push({ kind: "hunk", text: line });
+    } else if (line.startsWith("+")) {
+      file.additions += 1;
+      file.lines.push({ kind: "add", text: line.slice(1), newLine: newLine++ });
+    } else if (line.startsWith("-")) {
+      file.deletions += 1;
+      file.lines.push({ kind: "del", text: line.slice(1), oldLine: oldLine++ });
+    } else if (line.startsWith(" ")) {
+      file.lines.push({
+        kind: "context",
+        text: line.slice(1),
+        oldLine: oldLine++,
+        newLine: newLine++,
+      });
+    }
+  }
+  return files;
+}
+
+/** Elapsed time as minutes and seconds (or hours and minutes), for the UI to word. */
+export function durationParts(ms: number): { h: number; m: number; s: number } {
+  const total = Math.max(0, Math.round(ms / 1000));
+  return { h: Math.floor(total / 3600), m: Math.floor((total % 3600) / 60), s: total % 60 };
+}
+
+/** Titles from before repositories were shown separately began with "<repo>: "; drop that. */
+export function displayTitle(title: string, repo: string | undefined): string {
+  return repo && title.startsWith(`${repo}: `) ? title.slice(repo.length + 2) : title;
+}

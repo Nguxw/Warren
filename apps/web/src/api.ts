@@ -25,6 +25,13 @@ export class Unauthorized extends Error {}
 
 export type TaskView = TaskState & { status: TaskStatus };
 
+export interface WorkspaceDiff {
+  base?: string;
+  files: { path: string; additions: number; deletions: number; status: "modified" | "untracked" }[];
+  patch: string;
+  truncated: boolean;
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
@@ -45,6 +52,8 @@ export const api = {
   task: (id: string) => request<{ task: TaskView }>("GET", `/tasks/${id}`).then((r) => r.task),
   events: (id: string) =>
     request<{ events: TaskEvent[] }>("GET", `/tasks/${id}/events`).then((r) => r.events),
+  diff: (id: string) =>
+    request<{ diff: WorkspaceDiff }>("GET", `/tasks/${id}/diff`).then((r) => r.diff),
   cursor: () => request<{ id: number }>("GET", "/events/cursor").then((r) => r.id),
   health: () =>
     request<{ ok: boolean; sandbox: string; secrets: Record<string, boolean> }>("GET", "/health"),

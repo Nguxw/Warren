@@ -12,6 +12,7 @@ import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import type { Config } from "../config/config.ts";
+import type { WorkspaceDiff } from "../runtime/diff.ts";
 import type { Scheduler } from "../runtime/scheduler.ts";
 import { type TaskStore, UnknownTaskError } from "../store/task-store.ts";
 import type { Notifier } from "./notifier.ts";
@@ -28,6 +29,8 @@ export interface AppDeps {
   newId(): string;
   /** Interval for keep-alive comments on idle streams. */
   heartbeatMs?: number;
+  /** What a task changed in its workspace; undefined when it has no repository workspace. */
+  diff?(task: TaskState): Promise<WorkspaceDiff | undefined>;
 }
 
 const DEFAULT_MAX_MODEL_CALLS = 100;
@@ -86,7 +89,7 @@ export function createApp(deps: AppDeps) {
     }
     const id = deps.newId();
     const state = store.create(id, {
-      title: body.title ?? titleOf(body.instruction, workspace),
+      title: body.title ?? titleOf(body.instruction),
       instruction: body.instruction,
       grant: {
         workspace,
@@ -107,11 +110,18 @@ export function createApp(deps: AppDeps) {
     const parsed = status ? z.array(TaskStatus).parse(status) : undefined;
     const limit = Number(c.req.query("limit") ?? 50);
     const tasks = store.list({ ...(parsed && { status: parsed }), limit }).map((task) => {
-      if (task.status !== "waiting") return task;
-      const attention = (store.get(task.id)?.attention ?? []).map(
-        ({ attentionId, kind, prompt }) => ({ attentionId, kind, prompt }),
-      );
-      return { ...task, attention };
+      const state = store.get(task.id);
+      const workspace = state?.grant.workspace;
+      const source = workspace?.kind === "clone" ? workspace.source : undefined;
+      const repo = source ? { repo: basename(source), repoPath: source } : {};
+      const outcome = state?.ended ? { outcome: state.ended.outcome } : {};
+      if (task.status !== "waiting") return { ...task, ...repo, ...outcome };
+      const attention = (state?.attention ?? []).map(({ attentionId, kind, prompt }) => ({
+        attentionId,
+        kind,
+        prompt,
+      }));
+      return { ...task, ...repo, attention };
     });
     return c.json({ tasks });
   });
@@ -119,6 +129,13 @@ export function createApp(deps: AppDeps) {
   app.get("/events/cursor", (c) => c.json({ id: store.latestEventId() }));
 
   app.get("/tasks/:id", (c) => c.json({ task: view(load(c)) }));
+
+  app.get("/tasks/:id/diff", async (c) => {
+    const state = load(c);
+    const diff = await deps.diff?.(state);
+    if (!diff) throw new HTTPException(404, { message: "this task has no repository workspace" });
+    return c.json({ diff });
+  });
 
   app.get("/tasks/:id/events", (c) => {
     const after = Number(c.req.query("after") ?? -1);
@@ -253,10 +270,8 @@ function view(state: TaskState) {
   return { ...state, status: statusOf(state) };
 }
 
-function titleOf(instruction: string, workspace: { kind: string; source?: string }): string {
+/** The instruction's first line; the repository is shown on its own, not in the title. */
+function titleOf(instruction: string): string {
   const line = instruction.split("\n")[0]?.trim() ?? "";
-  const title = line.length > 72 ? `${line.slice(0, 71)}…` : line;
-  return workspace.kind === "clone" && workspace.source
-    ? `${basename(workspace.source)}: ${title}`
-    : title;
+  return line.length > 72 ? `${line.slice(0, 71)}…` : line;
 }

@@ -106,7 +106,8 @@ export function renderTask(task: TaskSummary, now = Date.now()): string {
         : task.status === "ended"
           ? dim
           : (s: string) => s;
-  return `${dim(shortId(task.id))}  ${color(task.status.padEnd(7))}  ${task.title}  ${dim(ago(now - task.updatedAt))}`;
+  const repo = task.repo ? `${dim(`[${task.repo}]`)} ` : "";
+  return `${dim(shortId(task.id))}  ${color(task.status.padEnd(7))}  ${repo}${task.title}  ${dim(ago(now - task.updatedAt))}`;
 }
 
 function ago(ms: number): string {
