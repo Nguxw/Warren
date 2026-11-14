@@ -155,6 +155,13 @@ export function ChevronRight(props: IconProps) {
     </Svg>
   );
 }
+export function ChevronDown(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="m6.5 9.5 5.5 5.5 5.5-5.5" />
+    </Svg>
+  );
+}
 export function ArrowUp(props: IconProps) {
   return (
     <Svg {...props}>

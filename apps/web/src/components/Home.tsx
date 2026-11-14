@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TaskSummary } from "@warren/protocol";
-import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useMemo, useState } from "react";
 import { api } from "../api.ts";
 import { useI18n } from "../context.tsx";
 import type { MessageKey } from "../i18n.ts";
-import { ArrowUp, Check, Close, Cpu, Folder, Globe, Logo, Package } from "../icons.tsx";
+import { ArrowUp, Check, Cpu, Folder, Globe, Logo, Package } from "../icons.tsx";
 import { useEnterToSend } from "../keys.ts";
+import { Menu } from "./Menu.tsx";
 
 const ROLES = ["main", "hard", "cheap"] as const;
 type Role = (typeof ROLES)[number];
@@ -308,61 +309,6 @@ function PathInput(props: { placeholder: string; onApply(path: string): void }) 
       onChange={(e) => setValue(e.target.value)}
       {...enter}
     />
-  );
-}
-
-/** A small button with a menu above it; closes on a choice, a click outside or Escape. */
-function Menu(props: {
-  trigger: ReactNode;
-  active: boolean;
-  title?: string;
-  onClear?: (() => void) | undefined;
-  children(close: () => void): ReactNode;
-}) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  return (
-    <div className="menu-root" ref={root}>
-      <span className={`bar-button ${props.active ? "on" : ""} ${open ? "open" : ""}`}>
-        <button
-          type="button"
-          className="bar-trigger"
-          title={props.title}
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          {props.trigger}
-        </button>
-        {props.onClear && (
-          <button
-            type="button"
-            className="bar-clear"
-            title={t("home.clear")}
-            onClick={props.onClear}
-          >
-            <Close size={12} />
-          </button>
-        )}
-      </span>
-      {open && <div className="menu">{props.children(() => setOpen(false))}</div>}
-    </div>
   );
 }
 

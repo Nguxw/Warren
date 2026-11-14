@@ -1930,6 +1930,106 @@ button.bar-button,
 
 /* ------------------------------------------------------------ files */
 
+.menu.below {
+  top: calc(100% + 6px);
+  bottom: auto;
+}
+
+/* The file shown, with a menu of the others: the preview keeps the full width. */
+.preview-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+.preview-actions .segmented {
+  margin-right: 6px;
+}
+.file-picker {
+  min-width: 0;
+}
+.file-picker .bar-button,
+.file-picker.single {
+  max-width: 100%;
+  height: 32px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 550;
+}
+.file-picker.single {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0 10px;
+}
+.file-picker svg {
+  flex: none;
+  color: var(--muted);
+}
+.picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-count {
+  flex: none;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.file-menu {
+  display: grid;
+  gap: 1px;
+  width: min(380px, 70vw);
+  max-height: 360px;
+  margin: -6px;
+  padding: 6px;
+  overflow-y: auto;
+}
+.file-option {
+  justify-content: flex-start;
+}
+.file-option > svg:first-child {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 3px;
+  color: var(--muted);
+}
+.file-option .menu-item-main {
+  flex: 1;
+}
+.file-option-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  overflow-wrap: anywhere;
+}
+.file-option-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.file-menu-group {
+  display: grid;
+  gap: 1px;
+}
+.file-menu-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 8px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.file-menu-folder span {
+  margin-left: auto;
+  font-weight: 400;
+}
+
 .chip.primary {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -1991,101 +2091,6 @@ button.chip.saved:hover {
   overflow-wrap: anywhere;
 }
 
-.files-split {
-  display: grid;
-  grid-template-columns: minmax(180px, 250px) minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
-}
-.file-list {
-  position: sticky;
-  top: 12px;
-  display: grid;
-  gap: 2px;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.file-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 8px;
-  row-gap: 1px;
-  width: 100%;
-  padding: 7px 9px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-2);
-  text-align: left;
-}
-.file-row svg {
-  margin-top: 3px;
-  color: var(--muted);
-}
-.file-row:hover {
-  background: var(--hover);
-}
-.file-row.selected {
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  color: var(--text);
-}
-.file-folder > summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 9px;
-  border-radius: var(--radius-sm);
-  color: var(--text-2);
-  font-size: 13px;
-  cursor: pointer;
-  list-style: none;
-}
-.file-folder > summary::-webkit-details-marker {
-  display: none;
-}
-.file-folder > summary:hover {
-  background: var(--hover);
-}
-.file-folder > summary svg {
-  color: var(--muted);
-}
-.file-folder .count {
-  margin-left: auto;
-  padding: 0 6px;
-  border-radius: 99px;
-  background: var(--surface-2);
-  font-size: 11.5px;
-  color: var(--muted);
-}
-.file-folder > ul {
-  display: grid;
-  gap: 2px;
-  margin: 2px 0 4px 14px;
-  padding: 0 0 0 6px;
-  border-left: 1px solid var(--line);
-  list-style: none;
-}
-.file-name {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 6px;
-  min-width: 0;
-  font-size: 13px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-.file-meta {
-  grid-column: 2;
-  font-size: 11.5px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .preview {
   min-width: 0;
   border: 1px solid var(--line);
@@ -2094,21 +2099,16 @@ button.chip.saved:hover {
   overflow: hidden;
 }
 .preview-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 10px 8px 16px;
+  padding: 6px 8px 6px 8px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
-}
-.preview-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: 12.5px var(--mono);
-  color: var(--text-2);
 }
 .preview .notice {
   margin: 12px 16px 0;
@@ -2491,10 +2491,6 @@ select.input {
   }
   .model-fields .field.wide {
     grid-column: auto;
-  }
-  .file-list {
-    position: static;
-    max-height: 30vh;
   }
   .setting-row {
     flex-wrap: wrap;

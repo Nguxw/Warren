@@ -221,7 +221,7 @@ const zh = {
   "files.rendered": "预览",
   "files.source": "源码",
   "files.htmlNote": "网页以源码显示，不会在这里运行；需要时在访达中用浏览器打开。",
-  "files.select": "选择左侧的文件查看内容。",
+  "files.of": "共 {n} 个",
 
   "settings.title": "设置",
   "settings.saved": "已保存",
@@ -508,7 +508,7 @@ const en: Record<MessageKey, string> = {
   "files.source": "Source",
   "files.htmlNote":
     "Web pages are shown as source and never run here; open one from Finder to view it in a browser.",
-  "files.select": "Pick a file on the left to see it.",
+  "files.of": "{n} files",
 
   "settings.title": "Settings",
   "settings.saved": "Saved",
