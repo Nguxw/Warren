@@ -122,6 +122,9 @@
 - **窗口：** 加载守护进程提供的同一个页面。外壳读取 `~/.warren/daemon.json`（遵守 `WARREN_HOME`）拿到端口和 token，并确认端口能连通后，用 `/#token=…` 打开页面，和 `warren open` 一样。
 - **守护进程未运行时：** 显示外壳自带的本地提示页（中英双语，默认中文），说明如何启动，并每 3 秒请求外壳重新连接，守护进程一起来就切换过去。
 - **菜单栏：** 有一个模板图标，菜单里是"打开 Warren"和"退出窗口"。关闭窗口只是隐藏；点击 Dock 图标会重新显示。
+- **链接：**
+  - WebKit 视图默认会丢掉"新窗口"请求（`target="_blank"` 的链接），普通链接又会把整个界面换成那个网页。所以外壳检查每一次跳转：只有守护进程自己的地址（`127.0.0.1`，端口以 `daemon.json` 为准）和本地提示页留在窗口里，其他 http(s) 链接交给系统默认浏览器打开。
+  - 链接来自模型写的文字，所以只放行 http 和 https，`file:`、`javascript:` 等协议一律不打开；网址作为参数传给 `/usr/bin/open`，从不拼进 shell 命令。
 - **安全：** 守护进程的页面对外壳来说是远程来源，没有任何 IPC 权限，所以它在外壳里的能力和在浏览器里完全一样。只有外壳自己的本地提示页能调用唯一的命令 `connect`。本地页的内容安全策略禁止内联脚本。
 - **构建：** `cd apps/desktop && bun run build` 输出 `src-tauri/target/release/bundle/macos/Warren.app`。需要 Rust 工具链（`brew install rustup && rustup default stable`）。
 - **图标：** 源文件是 `apps/desktop/icon-src/` 里的 SVG，用 `bunx tauri icon` 生成各尺寸。菜单栏图标是单色模板图，会自动适配深色和浅色菜单栏。

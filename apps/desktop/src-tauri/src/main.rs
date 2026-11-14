@@ -15,7 +15,9 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    webview::NewWindowResponse,
+    AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    WindowEvent,
 };
 
 const WINDOW: &str = "main";
@@ -44,6 +46,31 @@ fn daemon_url() -> Option<tauri::Url> {
     format!("http://127.0.0.1:{}/#token={}", info.port, info.token)
         .parse()
         .ok()
+}
+
+/// Whether a page belongs to the interface: the daemon's (on this machine, at the port it wrote
+/// to daemon.json) or the local fallback page. Everything else is the web.
+fn is_interface(url: &Url) -> bool {
+    match url.scheme() {
+        "tauri" => true,
+        "http" => {
+            let port = fs::read_to_string(warren_home().join("daemon.json"))
+                .ok()
+                .and_then(|text| serde_json::from_str::<DaemonInfo>(&text).ok())
+                .map(|info| info.port);
+            url.host_str() == Some("127.0.0.1") && url.port().is_some() && url.port() == port
+        }
+        _ => false,
+    }
+}
+
+/// Opens a web link in the person's browser. Links come from text the model wrote, so only
+/// http and https go out (never file:, javascript: or app schemes), and the URL is an argument
+/// to `open`, never part of a shell command.
+fn open_in_browser(url: &Url) {
+    if matches!(url.scheme(), "http" | "https") {
+        let _ = std::process::Command::new("/usr/bin/open").arg(url.as_str()).spawn();
+    }
 }
 
 /// Called by the local fallback page: switch to the daemon's interface once it is up.
@@ -80,6 +107,19 @@ fn main() {
                 None => WebviewUrl::App("index.html".into()),
             };
             WebviewWindowBuilder::new(app, WINDOW, url)
+                // The web view drops requests for new windows (links with target="_blank"), and a
+                // plain link would replace the interface: both go to the browser instead.
+                .on_navigation(|url| {
+                    if is_interface(url) {
+                        return true;
+                    }
+                    open_in_browser(url);
+                    false
+                })
+                .on_new_window(|url, _| {
+                    open_in_browser(&url);
+                    NewWindowResponse::Deny
+                })
                 .title("Warren")
                 .inner_size(1240.0, 820.0)
                 .min_inner_size(720.0, 480.0)
