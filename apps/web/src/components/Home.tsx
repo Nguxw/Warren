@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TaskSummary } from "@warren/protocol";
-import { type KeyboardEvent, type ReactNode, type RefObject, useMemo, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { api } from "../api.ts";
 import { useI18n } from "../context.tsx";
 import type { MessageKey } from "../i18n.ts";
@@ -16,6 +24,7 @@ import {
   Plug,
   Plus,
   Sparkle,
+  Terminal,
 } from "../icons.tsx";
 import { useEnterToSend } from "../keys.ts";
 import { matchesQuery, slashQuery } from "../model.ts";
@@ -24,10 +33,48 @@ import { Menu } from "./Menu.tsx";
 
 const ROLES = ["main", "hard", "cheap"] as const;
 type Role = (typeof ROLES)[number];
-const SUGGESTIONS: MessageKey[] = [
-  "home.example.research",
-  "home.example.fix",
-  "home.example.notes",
+/** Options a starter sets along with its text, so the task is ready to send. */
+interface Preset {
+  network?: boolean;
+  /** A skill to use, if it is installed and on. */
+  skill?: string;
+  /** What the person still has to choose, shown above the bar. */
+  tip?: MessageKey;
+}
+
+/** Ways to begin, shown while the text box is empty. */
+const STARTERS: {
+  key: string;
+  icon: ReactNode;
+  title: MessageKey;
+  description: MessageKey;
+  text: MessageKey;
+  preset: Preset;
+}[] = [
+  {
+    key: "research",
+    icon: <Globe size={17} />,
+    title: "starter.research.title",
+    description: "starter.research.description",
+    text: "starter.research.text",
+    preset: { network: true, skill: "research-report" },
+  },
+  {
+    key: "fix",
+    icon: <Terminal size={17} />,
+    title: "starter.fix.title",
+    description: "starter.fix.description",
+    text: "starter.fix.text",
+    preset: { tip: "starter.fix.tip" },
+  },
+  {
+    key: "notes",
+    icon: <Folder size={17} />,
+    title: "starter.notes.title",
+    description: "starter.notes.description",
+    text: "starter.notes.text",
+    preset: { tip: "starter.notes.tip" },
+  },
 ];
 
 /**
@@ -42,6 +89,8 @@ export function Home(props: {
 }) {
   const { t } = useI18n();
   const [text, setText] = useState("");
+  const [preset, setPreset] = useState<Preset>();
+  const clearPreset = useCallback(() => setPreset(undefined), []);
   return (
     <div className="home">
       <div className="home-inner">
@@ -55,20 +104,30 @@ export function Home(props: {
           inputRef={props.inputRef}
           text={text}
           onText={setText}
+          preset={preset}
+          onPresetUsed={clearPreset}
           onCreated={props.onCreated}
         />
-        <div className="suggestions">
-          {SUGGESTIONS.map((key) => (
+        {/* Starters make way once something is typed. */}
+        <div className={`starters ${text.trim() ? "hidden" : ""}`}>
+          {STARTERS.map((starter) => (
             <button
-              key={key}
+              key={starter.key}
               type="button"
-              className="suggestion"
+              className="starter"
+              tabIndex={text.trim() ? -1 : 0}
               onClick={() => {
-                setText(t(key));
-                props.inputRef.current?.focus();
+                const value = t(starter.text);
+                setText(value);
+                setPreset(starter.preset);
+                const box = props.inputRef.current;
+                box?.focus();
+                requestAnimationFrame(() => box?.setSelectionRange(value.length, value.length));
               }}
             >
-              {t(key)}
+              <span className="starter-icon">{starter.icon}</span>
+              <span className="starter-title">{t(starter.title)}</span>
+              <span className="starter-description">{t(starter.description)}</span>
             </button>
           ))}
         </div>
@@ -96,6 +155,9 @@ function TaskComposer(props: {
   inputRef: RefObject<HTMLTextAreaElement | null>;
   text: string;
   onText(text: string): void;
+  /** Options set by a starter, applied once. */
+  preset?: Preset | undefined;
+  onPresetUsed(): void;
   onCreated(id: string): void;
 }) {
   const { t } = useI18n();
@@ -119,6 +181,24 @@ function TaskComposer(props: {
   // The slash menu: where its `/` is in the text, and the highlighted item.
   const [slash, setSlash] = useState<{ start: number; query: string }>();
   const [active, setActive] = useState(0);
+  const [tip, setTip] = useState<MessageKey>();
+  const { preset, onPresetUsed } = props;
+  const installed = skillList.data?.skills;
+  useEffect(() => {
+    if (!preset) return;
+    // A starter replaces what the previous one set: no network choice means the default.
+    setNetwork(preset.network);
+    const skill = preset.skill;
+    setSkills(
+      skill && installed?.some((s) => s.name === skill && s.enabled && !s.error) ? [skill] : [],
+    );
+    setTip(preset.tip);
+    onPresetUsed();
+  }, [preset, installed, onPresetUsed]);
+  // The tip is about choosing a folder; it goes once one is chosen or the text is cleared.
+  useEffect(() => {
+    if (folder || !props.text.trim()) setTip(undefined);
+  }, [folder, props.text]);
 
   const create = useMutation({
     mutationFn: () =>
@@ -135,6 +215,7 @@ function TaskComposer(props: {
       if (output) saveOutputDir(output);
       props.onText("");
       setSkills([]);
+      setTip(undefined);
       client.invalidateQueries({ queryKey: ["tasks"] });
       props.onCreated(task.id);
     },
@@ -288,6 +369,12 @@ function TaskComposer(props: {
         // biome-ignore lint/a11y/noAutofocus: the start page exists to take this text
         autoFocus
       />
+      {tip && (
+        <p className="composer-tip">
+          <Folder size={13} />
+          {t(tip)}
+        </p>
+      )}
       {skills.length > 0 && (
         <div className="composer-chips">
           {skills.map((name) => (

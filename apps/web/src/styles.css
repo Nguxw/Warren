@@ -1900,29 +1900,67 @@ button.bar-button,
   margin: 4px 6px;
 }
 
-.suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 14px;
+.starters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin-top: 16px;
+  transition: opacity 0.15s;
 }
-.suggestion {
-  max-width: 100%;
-  padding: 7px 13px;
-  border: 1px solid var(--line-strong);
-  border-radius: 99px;
+/* Hidden but still taking its room, so the page does not jump while typing. */
+.starters.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.starter {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
   background: transparent;
-  color: var(--text-2);
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.suggestion:hover {
-  border-color: var(--faint);
-  background: var(--surface);
   color: var(--text);
+  text-align: left;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+.starter:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.starter-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 4px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.starter-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.starter-description {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.composer-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0 18px 4px;
+  font-size: 12.5px;
+  color: var(--accent);
 }
 .home .shortcuts {
   margin-top: 10px;
@@ -2950,6 +2988,9 @@ select.input {
   }
   .home {
     padding: 0 16px;
+  }
+  .starters {
+    grid-template-columns: 1fr;
   }
   .auto-card {
     flex-direction: column;
