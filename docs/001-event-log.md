@@ -19,7 +19,7 @@
 
 | 类型 | 含义 |
 |---|---|
-| `task.created` | 标题、指令、Grant、来源，以及可选的模型角色、跟随的对话、保存位置。一定是 `seq = 0` |
+| `task.created` | 标题、指令、Grant、来源，以及可选的模型角色、跟随的对话、保存位置、选用的技能。一定是 `seq = 0` |
 | `input.received` | 来自人或连接器的一条消息，会唤醒空闲的任务 |
 | `model.responded` | 一次模型响应：输出条目、停止原因、用量、耗时、所用模型 |
 | `model.failed` | 一次模型调用失败，已归一为 `retryable`、`fatal`、`context_overflow` |

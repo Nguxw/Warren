@@ -109,7 +109,7 @@ Web 界面 ───┼─HTTP + SSE（127.0.0.1，带 token）──▶ warren 
 
 | 路由 | 作用 |
 |---|---|
-| `POST /tasks` | 创建任务（`instruction`、`repo`、`outputDir`、`modelRole`、`network`、`budget`），并唤醒 |
+| `POST /tasks` | 创建任务（`instruction`、`repo`、`outputDir`、`modelRole`、`network`、`budget`、`skills`、`mcpServers`），并唤醒 |
 | `GET /tasks`、`GET /tasks/:id` | 列表和详情 |
 | `DELETE /tasks/:id` | 删除任务：日志和工作区；运行中的先停止 |
 | `GET /tasks/:id/events?after=` | 任务事件 |

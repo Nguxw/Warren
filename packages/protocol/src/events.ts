@@ -67,6 +67,8 @@ export const TaskCreated = event(
     follows: z.array(z.string()).optional(),
     /** Where the person wants the task's files saved; offered when the task ends. */
     outputDir: z.string().optional(),
+    /** Skills the person chose for the task, by name. */
+    skills: z.array(z.string()).optional(),
   }),
 );
 

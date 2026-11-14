@@ -14,10 +14,12 @@ import {
   groupTasks,
   lastModel,
   localLink,
+  matchesQuery,
   parseCommandLine,
   parseLines,
   previewKind,
   primaryArtifact,
+  slashQuery,
   timeline,
 } from "../src/model.ts";
 
@@ -252,6 +254,17 @@ test("MCP server command lines and variables", () => {
   expect(parseLines("Authorization: Bearer $WARREN_T_TOKEN", ":")).toEqual({
     Authorization: "Bearer $WARREN_T_TOKEN",
   });
+});
+
+test("a slash command is found at the caret, and only there", () => {
+  expect(slashQuery("/res", 4)).toEqual({ start: 0, query: "res" });
+  expect(slashQuery("写一份报告 /research", 15)).toEqual({ start: 6, query: "research" });
+  expect(slashQuery("/", 1)).toEqual({ start: 0, query: "" });
+  expect(slashQuery("a/b", 3)).toBeUndefined(); // a path, not a command
+  expect(slashQuery("/res done", 9)).toBeUndefined(); // the caret has moved past it
+  expect(matchesQuery("rep res", "research-report", "Write a report")).toBe(true);
+  expect(matchesQuery("pdf", "research-report")).toBe(false);
+  expect(matchesQuery("", "anything")).toBe(true);
 });
 
 describe("artifacts", () => {

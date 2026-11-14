@@ -34,10 +34,14 @@ export interface SkillSummary {
  * Skills listed by name and purpose; the model loads one's instructions with `load_skill` when
  * the task calls for it, so unused skills cost a line each.
  */
-function skillsSection(skills: readonly SkillSummary[]): string {
+function skillsSection(skills: readonly SkillSummary[], chosen: readonly string[]): string {
   if (skills.length === 0) return "";
   const list = skills.map((s) => `- ${s.name}: ${s.description}`).join("\n");
-  return `\n\nSkills: instructions and files for kinds of work. When the task matches one, call load_skill with its name before you start, and follow it.\n${list}`;
+  const required =
+    chosen.length > 0
+      ? `\nThe user chose ${chosen.join(", ")} for this task: load ${chosen.length > 1 ? "each" : "it"} with load_skill before anything else, and follow it.`
+      : "";
+  return `\n\nSkills: instructions and files for kinds of work. When the task matches one, call load_skill with its name before you start, and follow it.${required}\n${list}`;
 }
 
 export function systemPrompt(
@@ -69,5 +73,5 @@ How to work:
 - A question you can answer from what you know needs no tools: answer it in complete_task right away.
 - If you cannot go on without a decision only the user can make, call ask_user with one concrete question. Do not ask about things you can find out yourself.
 - Report honestly. A partial result is reported as partial, a failure as a failure.
-- Keep messages short.${privileged(state)}${skillsSection(skills)}`;
+- Keep messages short.${privileged(state)}${skillsSection(skills, state.skills)}`;
 }

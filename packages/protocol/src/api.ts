@@ -37,6 +37,10 @@ export const CreateTaskRequest = z.object({
   repo: z.string().optional(),
   /** Where to offer saving the task's files when it ends; an absolute folder path. */
   outputDir: z.string().optional(),
+  /** Skills the person chose for this task; the model loads them before it starts. */
+  skills: z.array(z.string()).optional(),
+  /** MCP servers the task may use, out of those turned on; all of them when absent. */
+  mcpServers: z.array(z.string()).optional(),
   /** Model role from the config, such as `main` or `hard`. */
   modelRole: z.string().optional(),
   /** Whether the task's commands may reach the network; default from the config (off). */

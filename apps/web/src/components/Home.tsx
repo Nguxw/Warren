@@ -1,11 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TaskSummary } from "@warren/protocol";
-import { type ReactNode, type RefObject, useMemo, useState } from "react";
+import { type KeyboardEvent, type ReactNode, type RefObject, useMemo, useState } from "react";
 import { api } from "../api.ts";
 import { useI18n } from "../context.tsx";
 import type { MessageKey } from "../i18n.ts";
-import { ArrowUp, Check, Cpu, Folder, Globe, Logo, Package } from "../icons.tsx";
+import {
+  ArrowUp,
+  Check,
+  Close,
+  Cpu,
+  Folder,
+  Globe,
+  Logo,
+  Package,
+  Plug,
+  Plus,
+  Sparkle,
+} from "../icons.tsx";
 import { useEnterToSend } from "../keys.ts";
+import { matchesQuery, slashQuery } from "../model.ts";
+import { type Command, CommandMenu } from "./CommandMenu.tsx";
 import { Menu } from "./Menu.tsx";
 
 const ROLES = ["main", "hard", "cheap"] as const;
@@ -94,6 +108,17 @@ function TaskComposer(props: {
   const [role, setRole] = useState<Role>("main");
   const [networkChoice, setNetwork] = useState<boolean>();
   const network = networkChoice ?? settings.data?.tasks.network ?? false;
+  const skillList = useQuery({ queryKey: ["skills"], queryFn: api.skills, staleTime: 30_000 });
+  const [skills, setSkills] = useState<string[]>([]);
+  // The MCP servers on; the task gets all of them unless the person narrows the choice.
+  const servers = Object.entries(settings.data?.mcpServers ?? {})
+    .filter(([, server]) => server.enabled)
+    .map(([name]) => name);
+  const [serverChoice, setServerChoice] = useState<string[]>();
+  const chosenServers = serverChoice ?? servers;
+  // The slash menu: where its `/` is in the text, and the highlighted item.
+  const [slash, setSlash] = useState<{ start: number; query: string }>();
+  const [active, setActive] = useState(0);
 
   const create = useMutation({
     mutationFn: () =>
@@ -103,10 +128,13 @@ function TaskComposer(props: {
         network,
         ...(folder && { repo: folder }),
         ...(output && { outputDir: output }),
+        ...(skills.length > 0 && { skills }),
+        ...(serverChoice && { mcpServers: serverChoice.filter((n) => servers.includes(n)) }),
       }),
     onSuccess: (task) => {
       if (output) saveOutputDir(output);
       props.onText("");
+      setSkills([]);
       client.invalidateQueries({ queryKey: ["tasks"] });
       props.onCreated(task.id);
     },
@@ -116,6 +144,112 @@ function TaskComposer(props: {
     if (ready) create.mutate();
   };
   const enter = useEnterToSend<HTMLTextAreaElement>(submit);
+  const pick = (prompt: string, then: (path: string) => void) =>
+    api.pickFolder(prompt).then(
+      (path) => {
+        if (path) then(path);
+      },
+      () => {},
+    );
+
+  const allCommands: Command[] = [
+    ...(skillList.data?.skills ?? [])
+      .filter((skill) => skill.enabled && !skill.error && !skills.includes(skill.name))
+      .map((skill) => ({
+        key: `skill:${skill.name}`,
+        group: t("slash.skills"),
+        icon: <Sparkle size={15} />,
+        label: `/${skill.name}`,
+        detail: skill.description,
+        run: () => setSkills((chosen) => [...chosen, skill.name]),
+      })),
+    {
+      key: "folder",
+      group: t("slash.task"),
+      icon: <Folder size={15} />,
+      label: t("slash.folder"),
+      hint: folder ? folder.split("/").at(-1) : undefined,
+      keywords: "folder repo 文件夹 仓库",
+      run: () => pick(t("new.choosePrompt"), setFolder),
+    },
+    {
+      key: "output",
+      group: t("slash.task"),
+      icon: <Package size={15} />,
+      label: t("slash.output"),
+      hint: output ? output.split("/").at(-1) : undefined,
+      keywords: "output save 保存 产物",
+      run: () => pick(t("new.outputPrompt"), setOutput),
+    },
+    ...ROLES.map((value) => ({
+      key: `model:${value}`,
+      group: t("slash.task"),
+      icon: <Cpu size={15} />,
+      label: t("slash.model", { role: t(`new.model.${value}`) }),
+      detail: settings.data?.models[value]?.model,
+      hint: role === value ? "✓" : undefined,
+      keywords: `model ${value} 模型`,
+      run: () => setRole(value),
+    })),
+    {
+      key: "network",
+      group: t("slash.task"),
+      icon: <Globe size={15} />,
+      label: network ? t("slash.networkOff") : t("slash.networkOn"),
+      keywords: "network web internet 联网 网络",
+      run: () => setNetwork(!network),
+    },
+  ];
+  const commands = allCommands.filter((command) =>
+    matchesQuery(slash?.query ?? "", command.label, command.detail, command.keywords),
+  );
+
+  const closeSlash = () => {
+    setSlash(undefined);
+    setActive(0);
+  };
+  /** Runs a command and removes the `/query` that called it. */
+  const choose = (command: Command) => {
+    const box = props.inputRef.current;
+    if (slash) {
+      const caret = box?.selectionStart ?? props.text.length;
+      props.onText(props.text.slice(0, slash.start) + props.text.slice(caret));
+      requestAnimationFrame(() => box?.setSelectionRange(slash.start, slash.start));
+    }
+    closeSlash();
+    command.run();
+    box?.focus();
+  };
+  const track = (text: string, caret: number) => {
+    const found = slashQuery(text, caret);
+    if (found?.query !== slash?.query) setActive(0);
+    setSlash(found);
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slash && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+      const count = commands.length;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : count - 1;
+        if (count > 0) setActive((i) => (i + step) % count);
+        return;
+      }
+      if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
+        const command = commands[Math.min(active, count - 1)];
+        if (command) {
+          event.preventDefault();
+          choose(command);
+          return;
+        }
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSlash();
+        return;
+      }
+    }
+    enter.onKeyDown(event);
+  };
 
   return (
     <form
@@ -125,17 +259,68 @@ function TaskComposer(props: {
         submit();
       }}
     >
+      {slash && (
+        <CommandMenu
+          commands={commands}
+          active={Math.min(active, Math.max(commands.length - 1, 0))}
+          empty={t("slash.none")}
+          onHover={setActive}
+          onChoose={choose}
+        />
+      )}
       <textarea
         ref={props.inputRef}
         rows={3}
         value={props.text}
-        onChange={(e) => props.onText(e.target.value)}
-        {...enter}
+        onChange={(e) => {
+          props.onText(e.target.value);
+          track(e.target.value, e.target.selectionStart);
+        }}
+        onSelect={(e) => {
+          const box = e.currentTarget;
+          if (slash) track(box.value, box.selectionStart);
+        }}
+        onBlur={closeSlash}
+        onCompositionStart={enter.onCompositionStart}
+        onCompositionEnd={enter.onCompositionEnd}
+        onKeyDown={onKeyDown}
         placeholder={t("home.placeholder")}
         // biome-ignore lint/a11y/noAutofocus: the start page exists to take this text
         autoFocus
       />
+      {skills.length > 0 && (
+        <div className="composer-chips">
+          {skills.map((name) => (
+            <span key={name} className="skill-chip">
+              <Sparkle size={13} />
+              {name}
+              <button
+                type="button"
+                title={t("home.clear")}
+                onClick={() => setSkills((chosen) => chosen.filter((n) => n !== name))}
+              >
+                <Close size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="composer-bar">
+        <button
+          type="button"
+          className="bar-button plus"
+          title={t("slash.open")}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            const box = props.inputRef.current;
+            const caret = box?.selectionStart ?? props.text.length;
+            setActive(0);
+            setSlash(slash ? undefined : { start: caret, query: "" });
+            box?.focus();
+          }}
+        >
+          <Plus size={15} />
+        </button>
         <FolderMenu
           icon={<Folder size={14} />}
           label={t("new.repo")}
@@ -189,6 +374,42 @@ function TaskComposer(props: {
             ))
           }
         </Menu>
+        {servers.length > 0 && (
+          <Menu
+            trigger={
+              <>
+                <Plug size={14} />
+                {serverChoice ? t("home.mcpSome", { n: chosenServers.length }) : t("home.mcpAll")}
+              </>
+            }
+            active={chosenServers.length > 0}
+            title={t("home.mcpHint")}
+          >
+            {() => (
+              <>
+                <p className="menu-hint">{t("home.mcpHint")}</p>
+                {servers.map((name) => {
+                  const on = chosenServers.includes(name);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      className={`menu-item ${on ? "on" : ""}`}
+                      onClick={() =>
+                        setServerChoice(
+                          on ? chosenServers.filter((n) => n !== name) : [...chosenServers, name],
+                        )
+                      }
+                    >
+                      <span className="menu-item-main">{name}</span>
+                      {on && <Check size={14} />}
+                    </button>
+                  );
+                })}
+              </>
+            )}
+          </Menu>
+        )}
         <button
           type="button"
           className={`bar-button ${network ? "on" : ""}`}

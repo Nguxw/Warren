@@ -71,6 +71,8 @@ export interface TaskState {
   ended?: { outcome: TaskEndOutcome; summary?: string; at: number };
   /** Where the person wants the task's files saved, chosen when it was created. */
   outputDir?: string;
+  /** Skills the person chose for the task. */
+  skills: string[];
   /** Times the task's files were saved out of its workspace, oldest first. */
   exports: { destination: string; files: number; at: number }[];
   usage: UsageTotals;
@@ -101,7 +103,7 @@ export function foldEvents(events: Iterable<TaskEvent>): TaskState {
 export function createState(event: TaskEvent): TaskState {
   if (event.type !== "task.created") fail(event, "a log must start with task.created");
   if (event.seq !== 0) fail(event, "task.created must have seq 0");
-  const { title, instruction, grant, trigger, modelRole, follows, outputDir } = event.data;
+  const { title, instruction, grant, trigger, modelRole, follows, outputDir, skills } = event.data;
   return {
     id: event.taskId,
     title,
@@ -111,6 +113,7 @@ export function createState(event: TaskEvent): TaskState {
     ...(modelRole !== undefined && { modelRole }),
     follows: follows ?? [],
     ...(outputDir !== undefined && { outputDir }),
+    skills: skills ?? [],
     exports: [],
     createdAt: event.at,
     updatedAt: event.at,

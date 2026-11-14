@@ -22,6 +22,7 @@ import {
   Play,
   PullRequest,
   Reveal,
+  Sparkle,
   Stop,
   Trash,
 } from "../icons.tsx";
@@ -279,6 +280,12 @@ function TaskHeader(props: {
           <span className="meta-automation">
             <Clock size={13} />
             {t("auto.badge")}
+          </span>
+        )}
+        {task.skills.length > 0 && (
+          <span className="meta-skills" title={t("meta.skills")}>
+            <Sparkle size={13} />
+            {task.skills.join(" · ")}
           </span>
         )}
         <span title={t("meta.modelTitle")}>

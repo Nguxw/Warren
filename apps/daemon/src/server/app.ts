@@ -136,7 +136,17 @@ export function createApp(deps: AppDeps) {
   app.post("/tasks", async (c) => {
     const body = CreateTaskRequest.parse(await c.req.json());
     const id = deps.newId();
-    const state = store.create(id, taskData(body, { source: "manual" }, deps));
+    const state = store.create(
+      id,
+      taskData(
+        body,
+        { source: "manual" },
+        {
+          ...deps,
+          skillNames: () => deps.skills.enabled().map((s) => s.name),
+        },
+      ),
+    );
     scheduler.wake(id);
     return c.json({ task: view(state) }, 201);
   });

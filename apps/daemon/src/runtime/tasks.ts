@@ -21,7 +21,7 @@ export class TaskRequestError extends Error {}
 export function taskData(
   request: CreateTaskRequest,
   trigger: TriggerRef,
-  deps: { config: Config; folders: FolderRules },
+  deps: { config: Config; folders: FolderRules; skillNames?: () => readonly string[] },
 ): EventOf<"task.created">["data"] {
   const { config } = deps;
   const modelRole = request.modelRole ?? "main";
@@ -42,9 +42,21 @@ export function taskData(
     }
   }
   const outputDir = request.outputDir ? checkFolder(request.outputDir, deps.folders) : undefined;
-  const mcpServers = Object.entries(config.mcp.servers)
+  const enabledServers = Object.entries(config.mcp.servers)
     .filter(([, server]) => server.enabled)
     .map(([name]) => name);
+  // A choice narrows the servers that are on; it cannot name one that is off.
+  for (const name of request.mcpServers ?? []) {
+    if (!enabledServers.includes(name)) {
+      throw new TaskRequestError(`MCP server "${name}" is not configured and turned on`);
+    }
+  }
+  const mcpServers = request.mcpServers ?? enabledServers;
+  const available = deps.skillNames?.() ?? [];
+  for (const name of request.skills ?? []) {
+    if (!available.includes(name)) throw new TaskRequestError(`no skill "${name}" is turned on`);
+  }
+  const skills = [...new Set(request.skills ?? [])];
   return {
     title: request.title ?? titleOf(request.instruction),
     instruction: request.instruction,
@@ -60,6 +72,7 @@ export function taskData(
     trigger,
     modelRole,
     ...(outputDir && { outputDir }),
+    ...(skills.length > 0 && { skills }),
   };
 }
 

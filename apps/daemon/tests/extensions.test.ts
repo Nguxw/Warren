@@ -125,6 +125,15 @@ describe("MCP servers", () => {
       ["fixture"],
     );
 
+    // A task may narrow the servers to none, but not name one that is not on.
+    expect(
+      (await call("POST", "/tasks", { instruction: "z", mcpServers: [] })).body.task.grant
+        .mcpServers,
+    ).toBeUndefined();
+    expect((await call("POST", "/tasks", { instruction: "z", mcpServers: ["nope"] })).status).toBe(
+      400,
+    );
+
     await call("PATCH", "/settings", { mcpServers: { fixture: null } });
     expect((await call("GET", "/settings")).body.settings.mcpServers).toEqual({});
     expect(
@@ -161,8 +170,24 @@ describe("skills", () => {
       existsSync(join(home, "tasks", id, "scratch", "skills", "research-report", "template.md")),
     ).toBe(true);
 
+    // Chosen for a task, the model is told to load it first; an unknown skill is refused.
+    const chosen = new ScriptedModel([reply(toolCall("complete_task", { summary: "ok" }))]);
+    await daemon?.stop();
+    const withChoice = await start(chosen);
+    const task = (
+      await withChoice("POST", "/tasks", { instruction: "Report", skills: ["research-report"] })
+    ).body.task;
+    expect(task.skills).toEqual(["research-report"]);
+    await daemon?.scheduler.idle();
+    expect(chosen.requests[0]?.instructions).toContain(
+      "The user chose research-report for this task: load it with load_skill",
+    );
+    expect(
+      (await withChoice("POST", "/tasks", { instruction: "x", skills: ["nope"] })).status,
+    ).toBe(400);
+
     // Turned off, it is no longer offered.
-    await call("PATCH", "/settings", { disabledSkills: ["research-report"] });
+    await withChoice("PATCH", "/settings", { disabledSkills: ["research-report"] });
     const next = new ScriptedModel([reply(toolCall("complete_task", { summary: "ok" }))]);
     await daemon?.stop();
     const again = await start(next, { skills: { disabled: ["research-report"] } });

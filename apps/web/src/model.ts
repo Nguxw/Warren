@@ -618,3 +618,28 @@ export function parseLines(text: string, separator: "=" | ":"): Record<string, s
   }
   return result;
 }
+
+/**
+ * The slash command being typed at the caret, if any: a `/` at the start of the text or after
+ * whitespace, followed by non-space characters up to the caret. `start` is where the `/` is, so
+ * choosing an item can remove what was typed.
+ */
+export function slashQuery(
+  text: string,
+  caret: number,
+): { start: number; query: string } | undefined {
+  let start = caret;
+  while (start > 0 && !/\s/.test(text[start - 1] as string)) start -= 1;
+  if (text[start] !== "/") return undefined;
+  return { start, query: text.slice(start + 1, caret) };
+}
+
+/** Whether an item matches what was typed after the slash: every word appears somewhere. */
+export function matchesQuery(query: string, ...fields: (string | undefined)[]): boolean {
+  const haystack = fields.join(" ").toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => haystack.includes(word));
+}
