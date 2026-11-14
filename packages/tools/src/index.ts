@@ -8,6 +8,7 @@ export * from "./files.ts";
 export * from "./privileged.ts";
 export * from "./process.ts";
 export * from "./sandbox.ts";
+export * from "./skills.ts";
 
 /** The tools every task gets. Processes they start run in `sandbox`. */
 export function builtinTools(sandbox: Sandbox = noSandbox): Tool[] {

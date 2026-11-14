@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { MCP_SERVER_NAME, McpServerConfig } from "@warren/mcp";
 import { z } from "zod";
 import { OPENAI_KEY, SECRET_NAME } from "./secrets.ts";
 
@@ -111,6 +112,19 @@ const ConfigFile = z.object({
   approvals: z.record(z.string(), z.enum(["required", "auto"])).optional(),
   /** Desktop notifications when a task needs you or finishes. */
   notifications: z.boolean().optional(),
+  /** MCP servers whose tools tasks may use (docs/011). */
+  mcp: z
+    .object({
+      servers: z
+        .record(
+          z.string().regex(MCP_SERVER_NAME, "use lowercase letters, digits and -"),
+          McpServerConfig,
+        )
+        .default({}),
+    })
+    .optional(),
+  /** Skills live in <home>/skills; these installed ones are turned off. */
+  skills: z.object({ disabled: z.array(z.string()).default([]) }).optional(),
   github: z
     .object({
       /** How people address Warren in comments. */
@@ -158,6 +172,8 @@ export interface Config {
   tasks: { network: boolean };
   approvals: Record<string, "required" | "auto">;
   notifications: boolean;
+  mcp: { servers: Record<string, McpServerConfig> };
+  skills: { disabled: string[] };
   github?: GitHubConfig;
 }
 
@@ -177,8 +193,18 @@ export function parseConfig(raw: unknown, source: string): Config {
   if (!parsed.success) {
     throw new Error(`invalid config ${source}:\n${z.prettifyError(parsed.error)}`);
   }
-  const { models, server, concurrency, sandbox, tasks, approvals, notifications, github } =
-    parsed.data;
+  const {
+    models,
+    server,
+    concurrency,
+    sandbox,
+    tasks,
+    approvals,
+    notifications,
+    mcp,
+    skills,
+    github,
+  } = parsed.data;
   return {
     models: { ...DEFAULT_MODELS, ...models },
     server: { host: server?.host ?? "127.0.0.1", port: server?.port ?? DEFAULT_PORT },
@@ -187,6 +213,8 @@ export function parseConfig(raw: unknown, source: string): Config {
     tasks: { network: tasks?.network ?? false },
     approvals: approvals ?? {},
     notifications: notifications ?? true,
+    mcp: { servers: mcp?.servers ?? {} },
+    skills: { disabled: skills?.disabled ?? [] },
     ...(github && { github }),
   };
 }

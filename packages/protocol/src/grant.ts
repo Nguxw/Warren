@@ -34,6 +34,8 @@ export const Grant = z.object({
   network: z.boolean(),
   /** Names of privileged tools (push, open PR, send message) the task may call. */
   privilegedTools: z.array(z.string()),
+  /** MCP servers whose tools the task may call; fixed when it is created like the rest. */
+  mcpServers: z.array(z.string()).optional(),
   budget: Budget,
 });
 export type Grant = z.infer<typeof Grant>;

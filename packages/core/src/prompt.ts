@@ -24,10 +24,27 @@ function privileged(state: TaskState): string {
  * The system instructions. They change only with the task's workspace and Grant, so the prefix stays
  * identical across a task's calls and providers can cache it.
  */
+/** A skill as the model first sees it: what it is for, not yet its instructions. */
+export interface SkillSummary {
+  name: string;
+  description: string;
+}
+
+/**
+ * Skills listed by name and purpose; the model loads one's instructions with `load_skill` when
+ * the task calls for it, so unused skills cost a line each.
+ */
+function skillsSection(skills: readonly SkillSummary[]): string {
+  if (skills.length === 0) return "";
+  const list = skills.map((s) => `- ${s.name}: ${s.description}`).join("\n");
+  return `\n\nSkills: instructions and files for kinds of work. When the task matches one, call load_skill with its name before you start, and follow it.\n${list}`;
+}
+
 export function systemPrompt(
   state: TaskState,
   workspace: string,
   model?: { provider: string; model: string },
+  skills: readonly SkillSummary[] = [],
 ): string {
   const { grant } = state;
   const identity = model
@@ -52,5 +69,5 @@ How to work:
 - A question you can answer from what you know needs no tools: answer it in complete_task right away.
 - If you cannot go on without a decision only the user can make, call ask_user with one concrete question. Do not ask about things you can find out yourself.
 - Report honestly. A partial result is reported as partial, a failure as a failure.
-- Keep messages short.${privileged(state)}`;
+- Keep messages short.${privileged(state)}${skillsSection(skills)}`;
 }

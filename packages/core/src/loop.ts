@@ -15,7 +15,7 @@ import {
   type Tool,
   type ToolSpec,
 } from "./ports.ts";
-import { systemPrompt } from "./prompt.ts";
+import { type SkillSummary, systemPrompt } from "./prompt.ts";
 import { type NextStep, nextStep, type RunningCall, type TaskState } from "./task-state.ts";
 
 /**
@@ -28,6 +28,13 @@ export interface LoopDeps {
   log: TaskLog;
   models: ModelResolver;
   tools: readonly Tool[];
+  /**
+   * Tools that come and go while the daemon runs, such as those of MCP servers, for this task.
+   * Called each turn; a source that cannot be reached contributes nothing that turn.
+   */
+  moreTools?(state: TaskState, signal: AbortSignal): Promise<readonly Tool[]>;
+  /** Skills the model may load, named in the system prompt. */
+  skills?(): readonly SkillSummary[];
   workspaceOf(taskId: string): string;
   scratchOf(taskId: string): string;
   newId(): string;
@@ -101,7 +108,9 @@ export async function runTask(
     if (!state) throw new Error(`no task ${taskId}`);
     const step = nextStep(state);
     if (signal.aborted) return step;
-    const tools = availableTools(deps.tools, state);
+    const extra = deps.moreTools ? await deps.moreTools(state, signal) : [];
+    if (signal.aborted) return step;
+    const tools = availableTools([...deps.tools, ...extra], state);
 
     switch (step.kind) {
       case "ended":
@@ -170,7 +179,7 @@ export async function runTask(
     try {
       const response = await resolved.client.complete({
         model: resolved.model,
-        instructions: systemPrompt(state, deps.workspaceOf(taskId), model),
+        instructions: systemPrompt(state, deps.workspaceOf(taskId), model, deps.skills?.() ?? []),
         items: state.history,
         tools: specs,
         cacheKey: taskId,
@@ -442,7 +451,7 @@ export function toolSpecs(tools: readonly Tool[]): ToolSpec[] {
     ...tools.map((tool) => ({
       name: tool.name,
       description: tool.description,
-      parameters: jsonSchema(tool.parameters),
+      parameters: tool.inputSchema ?? jsonSchema(tool.parameters),
     })),
     ...control,
   ];

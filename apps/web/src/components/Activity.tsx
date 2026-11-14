@@ -18,6 +18,7 @@ import {
   type Block,
   categoryOf,
   compact,
+  displayToolName,
   type KeyedEntry,
   type Notice,
   type StepCategory,
@@ -104,7 +105,7 @@ function ToolRow({ tool }: { tool: ToolEntry }) {
     <details className={`tool ${bad ? "bad" : ""}`}>
       <summary title={toolStatusLabel(t, tool.status)}>
         <Icon size={14} />
-        <span className="tool-name">{tool.name}</span>
+        <span className="tool-name">{displayToolName(tool.name)}</span>
         <span className="tool-args">{argsPreview(tool.args)}</span>
         <span className="tool-state">
           {busy ? (

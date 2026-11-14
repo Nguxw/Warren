@@ -8,11 +8,14 @@ import {
 } from "@warren/protocol";
 import {
   argsPreview,
+  displayToolName,
   formatBytes,
   groupFiles,
   groupTasks,
   lastModel,
   localLink,
+  parseCommandLine,
+  parseLines,
   previewKind,
   primaryArtifact,
   timeline,
@@ -224,6 +227,30 @@ describe("reasoning and model", () => {
     expect(thoughts(log(responded(0)))).toEqual([]);
     expect(lastModel(log(responded(0)))).toBe("gpt-x");
     expect(lastModel([])).toBeUndefined();
+  });
+});
+
+test("MCP tools read as server and tool", () => {
+  expect(displayToolName("mcp__github__create_issue")).toBe("github · create_issue");
+  expect(displayToolName("mcp__my-server__search")).toBe("my-server · search");
+  expect(displayToolName("read_file")).toBe("read_file");
+});
+
+test("MCP server command lines and variables", () => {
+  expect(parseCommandLine('npx -y @mcp/server-fs "/Users/me/My Documents" --x=1')).toEqual([
+    "npx",
+    "-y",
+    "@mcp/server-fs",
+    "/Users/me/My Documents",
+    "--x=1",
+  ]);
+  expect(parseCommandLine("  uvx  mcp-server-git ''  ")).toEqual(["uvx", "mcp-server-git", ""]);
+  expect(parseLines("A=1\n# note\n\nB = $WARREN_X_TOKEN\nbad", "=")).toEqual({
+    A: "1",
+    B: "$WARREN_X_TOKEN",
+  });
+  expect(parseLines("Authorization: Bearer $WARREN_T_TOKEN", ":")).toEqual({
+    Authorization: "Bearer $WARREN_T_TOKEN",
   });
 });
 

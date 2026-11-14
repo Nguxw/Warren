@@ -1,13 +1,16 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { ModelResolver, Tool } from "@warren/core";
+import { McpHub } from "@warren/mcp";
 import { automationOf, DaemonInfo, type TaskEvent } from "@warren/protocol";
 import {
   builtinTools,
+  loadSkillTool,
   noSandbox,
   openPullRequestTool,
   publishBranchTool,
   type Sandbox,
   SeatbeltSandbox,
+  SkillCatalog,
   seatbeltAvailable,
 } from "@warren/tools";
 import { type Config, loadConfig } from "./config/config.ts";
@@ -83,8 +86,15 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
   const defaultApprovals = Object.fromEntries(
     privileged.map((tool) => [tool.name, tool.approval ?? "auto"] as const),
   );
+  const skills = new SkillCatalog(paths.skills, () => config.skills.disabled);
+  const mcp = new McpHub({
+    servers: () => config.mcp.servers,
+    secret: (name) => secrets[name],
+    logger,
+  });
   const tools = options.tools ?? [
     ...builtinTools(sandbox),
+    loadSkillTool(skills),
     // The rule is looked up per call, so a change in the settings applies to the next call.
     ...privileged.map((tool) =>
       Object.defineProperty({ ...tool }, "approval", {
@@ -118,6 +128,9 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     loop: {
       models: options.models ?? modelResolver(config.models, providerClients(secrets)),
       tools,
+      // Each task sees the tools of the MCP servers its Grant names.
+      moreTools: (state) => mcp.tools(state.grant.mcpServers ?? []),
+      skills: () => skills.enabled().map(({ name, description }) => ({ name, description })),
       newId: () => Bun.randomUUIDv7(),
       sleep: options.sleep ?? abortableSleep,
     },
@@ -206,6 +219,8 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       onConcurrency: (n) => scheduler.setConcurrency(n),
     }),
     workspaceOf: (id) => workspaces.pathOf(id),
+    skills,
+    mcp,
     deleteTask: async (id) => {
       await scheduler.release(id);
       db.transaction(() => {
@@ -281,6 +296,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       stopping ??= (async () => {
         automations.stop();
         await github?.stop();
+        await mcp.close();
         await scheduler.stop();
         await server.stop(true);
         db.close();

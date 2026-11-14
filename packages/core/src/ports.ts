@@ -106,6 +106,11 @@ export interface Tool<A = unknown> {
   name: string;
   description: string;
   parameters: z.ZodType<A>;
+  /**
+   * The JSON Schema the model sees, when the tool comes with its own (an MCP tool) rather than
+   * one derived from `parameters`; `parameters` then only checks that arguments are an object.
+   */
+  inputSchema?: Record<string, unknown>;
   effect: ToolEffect;
   /**
    * Privileged tools run in the trusted daemon with credentials the sandbox never sees, such as

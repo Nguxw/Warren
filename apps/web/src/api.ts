@@ -91,14 +91,44 @@ export interface Settings {
   notifications: boolean;
   tasks: { network: boolean };
   approvals: Record<string, "required" | "auto">;
+  mcpServers: Record<string, McpServer>;
+  disabledSkills: string[];
   secrets: SecretInfo[];
   sandbox: string;
   paths: { home: string; config: string; credentials: string };
 }
 
+export interface McpServer {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  enabled: boolean;
+  approval: "required" | "auto";
+}
+
+export interface McpStatus {
+  name: string;
+  state: "idle" | "connected" | "error";
+  tools?: number;
+  error?: string;
+}
+
+export interface SkillInfo {
+  name: string;
+  description: string;
+  path: string;
+  enabled: boolean;
+  error?: string;
+}
+
 export type SettingsPatch = Partial<
-  Pick<Settings, "models" | "concurrency" | "notifications" | "tasks" | "approvals">
->;
+  Pick<
+    Settings,
+    "models" | "concurrency" | "notifications" | "tasks" | "approvals" | "disabledSkills"
+  >
+> & { mcpServers?: Record<string, McpServer | null> };
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -168,6 +198,16 @@ export const api = {
   runAutomation: (id: string) =>
     request<{ taskId?: string }>("POST", `/automations/${id}/run`).then((r) => r.taskId),
   settings: () => request<{ settings: Settings }>("GET", "/settings").then((r) => r.settings),
+  skills: () => request<{ skills: SkillInfo[]; root: string }>("GET", "/skills"),
+  installSkill: (path: string) => request<{ skill: SkillInfo }>("POST", "/skills", { path }),
+  deleteSkill: (name: string) => request<{ deleted: string }>("DELETE", `/skills/${name}`),
+  revealSkills: () => request<{ ok: true }>("POST", "/skills/reveal", {}),
+  mcp: () => request<{ servers: McpStatus[] }>("GET", "/mcp").then((r) => r.servers),
+  testMcp: (name: string) =>
+    request<{ tools: { name: string; description: string; readOnly: boolean }[] }>(
+      "POST",
+      `/mcp/${name}/test`,
+    ).then((r) => r.tools),
   updateSettings: (patch: SettingsPatch) =>
     request<{ settings: Settings }>("PATCH", "/settings", patch).then((r) => r.settings),
   setSecret: (name: string, value: string) =>

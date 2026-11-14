@@ -36,6 +36,7 @@ Most coding agents are something you watch: a terminal session editing your dire
 - **Sandboxed:** commands the model runs are confined by macOS Seatbelt: writes only to their own workspace, no reads of `~/.ssh`, the keychain or Warren's keys, network per task. Actions that need credentials are carried out by the daemon in fixed ways, and can require your approval.
 - **Any model:** a provider-neutral conversation format with three adapters: OpenAI (Responses), OpenAI-compatible endpoints (DeepSeek, Qwen, Ollama, vLLM…) and Anthropic. Models are set per role (standard, deep, fast); long tasks compact their context automatically.
 - **Results you can open:** reports and data files preview in the interface (Markdown, tables, images), open in Finder, or save to a folder of yours.
+- **Skills and MCP:** teach it kinds of work with skills in the Agent Skills format (loaded only when needed), and give it outside tools through MCP servers: read-only tools are called freely, others need your approval by default.
 - **Automations:** tasks that start on a schedule, such as "every day at 9:00, research GitHub trending and save the report to the Desktop". Runs missed while the computer slept are made up once.
 - **GitHub:** mention @warren in an issue to start work; its questions and conclusions are posted back. Inferred work such as CI failures is observed first and switched to automatic once you trust it.
 - **Interface:** a bilingual (Chinese and English) web interface and a macOS desktop app (Tauri) with a live timeline, replay and notifications, plus a complete CLI.
@@ -102,7 +103,7 @@ protocol    event format · conversation items · Grant · API contract         
 - **The log is the only source of truth.** Each step reads state, acts, and appends events. `tool.started` reaches the disk before a tool runs (`synchronous = FULL`), so after a crash Warren knows which actions may have happened: reads and workspace writes run again; external actions are reported to the model as "outcome unknown" to check before retrying.
 - **Boundaries by mechanism, not by prompt.** What a task may touch (workspace, network, privileged tools, budget) is fixed in its Grant when it is created; the sandbox and the privileged tools enforce it.
 
-The design documents in [`docs/`](docs) (in Chinese) are meant to be read in order, from [000 Philosophy](docs/000-philosophy.md) to [010 Automations](docs/010-automations.md).
+The design documents in [`docs/`](docs) (in Chinese) are meant to be read in order, from [000 Philosophy](docs/000-philosophy.md) to [011 Skills and MCP](docs/011-skills-and-mcp.md).
 
 ## Evaluation
 

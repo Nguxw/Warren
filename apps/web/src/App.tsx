@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, subscribe, Unauthorized } from "./api.ts";
 import { AutomationsView } from "./components/Automations.tsx";
 import { DeleteTask } from "./components/DeleteTask.tsx";
+import { McpView, SkillsView } from "./components/Extensions.tsx";
 import { Home } from "./components/Home.tsx";
 import { SettingsView } from "./components/SettingsView.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
@@ -31,11 +32,13 @@ export function App() {
   );
 }
 
+type Page = "tasks" | "triggers" | "settings" | "automations" | "skills" | "mcp";
+
 function Shell() {
   const [selected, setSelected] = useState<string | null>(() =>
     new URLSearchParams(window.location.search).get("task"),
   );
-  const [page, setPage] = useState<"tasks" | "triggers" | "settings" | "automations">("tasks");
+  const [page, setPage] = useState<Page>("tasks");
   const [automationDraft, setAutomationDraft] = useState<Partial<AutomationSpec>>();
   const clearDraft = useCallback(() => setAutomationDraft(undefined), []);
   const [deleting, setDeleting] = useState<{ id: string; title: string; status: string }>();
@@ -51,7 +54,7 @@ function Shell() {
     setPage("tasks");
     history.replaceState(null, "", id ? `?task=${id}` : window.location.pathname);
   }, []);
-  const open = useCallback((next: "triggers" | "settings" | "automations") => {
+  const open = useCallback((next: Exclude<Page, "tasks">) => {
     setPage(next);
     setSelected(null);
     history.replaceState(null, "", window.location.pathname);
@@ -100,10 +103,16 @@ function Shell() {
         onTriggers={() => open("triggers")}
         onSettings={() => open("settings")}
         onAutomations={() => open("automations")}
+        onSkills={() => open("skills")}
+        onMcp={() => open("mcp")}
       />
       <main className="main">
         {page === "settings" ? (
           <SettingsView />
+        ) : page === "skills" ? (
+          <SkillsView />
+        ) : page === "mcp" ? (
+          <McpView />
         ) : page === "automations" ? (
           <AutomationsView
             tasks={tasks.data ?? []}

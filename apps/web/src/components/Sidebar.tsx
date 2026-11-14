@@ -12,9 +12,11 @@ import {
   Logo,
   Message,
   Pause,
+  Plug,
   Plus,
   Search,
   Shield,
+  Sparkle,
   Trash,
 } from "../icons.tsx";
 import { displayTitle, groupTasks } from "../model.ts";
@@ -42,7 +44,9 @@ export function Sidebar(props: {
   onTriggers(): void;
   onSettings(): void;
   onAutomations(): void;
-  page: "tasks" | "triggers" | "settings" | "automations";
+  onSkills(): void;
+  onMcp(): void;
+  page: "tasks" | "triggers" | "settings" | "automations" | "skills" | "mcp";
 }) {
   const { t } = useI18n();
   const filtered = useMemo(() => {
@@ -83,6 +87,26 @@ export function Sidebar(props: {
         />
         <kbd>⌘K</kbd>
       </label>
+
+      <nav className="side-nav">
+        {(
+          [
+            ["automations", Clock, "nav.automations", props.onAutomations],
+            ["skills", Sparkle, "nav.skills", props.onSkills],
+            ["mcp", Plug, "nav.mcp", props.onMcp],
+          ] as const
+        ).map(([page, Icon, label, onClick]) => (
+          <button
+            key={page}
+            type="button"
+            className={`side-link ${props.page === page ? "on" : ""}`}
+            onClick={onClick}
+          >
+            <Icon size={15} className="side-icon" />
+            {t(label)}
+          </button>
+        ))}
+      </nav>
 
       <nav className="inbox">
         {props.loading && <p className="sidebar-note">{t("app.loading")}</p>}
@@ -150,14 +174,6 @@ export function Sidebar(props: {
         >
           <Gear size={14} />
           {t("app.settings")}
-        </button>
-        <button
-          type="button"
-          className={`foot-link ${props.page === "automations" ? "on" : ""}`}
-          onClick={props.onAutomations}
-        >
-          <Clock size={14} />
-          {t("auto.open")}
         </button>
         <button
           type="button"

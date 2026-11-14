@@ -7,12 +7,13 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@warren/connectors": "workspace:*",
     "@warren/core": "workspace:*",
+    "@warren/mcp": "workspace:*",
     "@warren/model": "workspace:*",
     "@warren/protocol": "workspace:*",
     "@warren/tools": "workspace:*",
     "hono": "^4.13.18",
-    "zod": "^4.6.7",
-    "@warren/connectors": "workspace:*"
+    "zod": "^4.6.7"
   }
 }

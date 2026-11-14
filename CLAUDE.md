@@ -24,7 +24,8 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 - Long tasks: `core/context.ts` plans compaction (never splitting a tool call from its result); the loop records `context.compacted` and the fold applies it.
 - `evals/swebench/` — SWE-bench Verified subset: `sample.py` draws instances, `run.ts` runs them as ordinary Warren tasks, `score.ts` scores with the official harness in Docker and cleans up (`docs/009`).
 - Automations (`docs/010`): schedule math is pure in `core/schedule.ts`; `daemon/runtime/automations.ts` starts runs (task + run record in one transaction); task creation and saving results are shared in `daemon/runtime/tasks.ts`.
-- Design docs: `docs/000`–`010`.
+- Skills and MCP (`docs/011`): skills (Agent Skills format) in `tools/src/skills.ts`, loaded into the task's scratch; the MCP client is `packages/mcp` (`McpHub`), its tools reach the loop through `LoopDeps.moreTools`, filtered by `Grant.mcpServers`; non-read-only MCP tools are `external`.
+- Design docs: `docs/000`–`011`.
 
 ## Rules that are expensive to break
 

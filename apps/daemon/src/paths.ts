@@ -23,6 +23,8 @@ export function warrenPaths(home = warrenHome()) {
     token: join(home, "token"),
     /** One directory per task: its workspace clone and large tool outputs. */
     tasks: join(home, "tasks"),
+    /** One folder per installed skill (docs/011). */
+    skills: join(home, "skills"),
     logs: join(home, "logs"),
   };
 }

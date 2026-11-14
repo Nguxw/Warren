@@ -36,6 +36,7 @@
 - **沙箱：** 模型执行的命令跑在 macOS Seatbelt 沙箱里：只能写自己的工作区，读不到 `~/.ssh`、钥匙串和 Warren 自己的密钥，网络按任务开关。需要凭证的动作由守护进程按固定方式代为执行，并可要求你审批。
 - **多模型：** 内部使用与提供方无关的对话格式，内置 OpenAI（Responses）、OpenAI 兼容接口（DeepSeek、Qwen、Ollama、vLLM 等）和 Anthropic 三个适配器。按角色（标准、深度、快速）配置模型，长任务自动压缩上下文。
 - **产物：** 调研报告、数据文件在界面里直接预览（Markdown、表格、图片），一键在访达中打开，或保存到你指定的文件夹。
+- **技能与 MCP：** 用 Agent Skills 格式的技能教它做某类工作（按需加载，不占上下文）；接上 MCP 服务器使用外部工具，只读工具直接调用，其他工具默认需要你批准。
 - **自动化：** 按时间表自动开始的任务，比如"每天 9:00 调研 GitHub 热榜，报告保存到桌面"。休眠时错过的运行，醒来后只补一次。
 - **GitHub：** 在 issue 里 @warren 派活，提问和结论回复到 issue；CI 失败这类推断出来的工作先"观察"，确认判断可靠再自动开工。
 - **界面：** 中英双语的 Web 界面和 macOS 桌面应用（Tauri），实时时间线、轨迹回放、系统通知，以及功能完整的命令行。
@@ -94,7 +95,7 @@ open src-tauri/target/release/bundle/macos/Warren.app
   - "动态"是完整的时间线，可以回放到任意一步；
   - "改动"显示仓库任务的 diff；
   - "产物"预览任务写出的文件。
-- **自动化：** 在侧栏左下角。在已完成的任务上点"定期运行…"，可以把它变成自动化。
+- **自动化、技能、MCP：** 都在侧栏上方。在已完成的任务上点"定期运行…"，可以把它变成自动化；技能和 MCP 服务器的用法见 [011](docs/011-skills-and-mcp.md)。
 - **设置：** 语言、外观、模型、API 密钥、是否默认联网、并发数、哪些动作需要审批。
 
 快捷键：`⌘N` 新任务 · `⌘K` 搜索 · `⌘,` 设置 · `↩` 发送 · `⇧↩` 换行。
@@ -172,8 +173,9 @@ protocol    事件格式 · 对话格式 · Grant · API 契约                 
 | `packages/protocol` | 事件格式、内部对话格式、Grant、自动化、API 契约（zod） |
 | `packages/core` | 状态折叠、Agent 循环、上下文压缩、路由、时间表；接口定义和测试替身 |
 | `packages/model` | 模型适配器：OpenAI Responses、OpenAI 兼容、Anthropic |
-| `packages/tools` | 内置工具、Seatbelt 沙箱、特权工具（发布分支、开 PR） |
+| `packages/tools` | 内置工具、Seatbelt 沙箱、特权工具（发布分支、开 PR）、技能 |
 | `packages/connectors` | GitHub：webhook、补漏轮询、回复 |
+| `packages/mcp` | MCP 客户端：连接 stdio 和 HTTP 服务器，把它们的工具交给循环 |
 | `apps/daemon` | 守护进程：Store、调度器、工作区、产物、自动化、HTTP API |
 | `apps/web` | Web 界面（React，由 Bun 打包，中英双语） |
 | `apps/desktop` | 桌面外壳（Tauri v2）：原生窗口和菜单栏图标 |
@@ -230,13 +232,13 @@ WARREN_HOME=/tmp/warren-dev bun apps/cli/src/main.ts daemon   # 从源码运行�
 | [008 上下文与指标](docs/008-context-and-metrics.md) | 长任务的上下文压缩、`warren stats` |
 | [009 基准评测](docs/009-swebench.md) | SWE-bench Verified 子集的方法、结果与复现 |
 | [010 自动化](docs/010-automations.md) | 按时间表开始的任务 |
+| [011 技能与 MCP](docs/011-skills-and-mcp.md) | 技能的格式与加载；MCP 服务器的连接、信任和审批 |
 
 ## 路线图
 
 - Linux 沙箱（bubblewrap），让 Linux 上的任务也运行在受限环境里
 - 按域名的网络白名单，替代"全开或全关"
 - 更多工作来源：邮件、日历、Slack 等连接器
-- 通过 MCP 接入外部工具
 - 签名的安装包和自动更新
 
 ## 许可

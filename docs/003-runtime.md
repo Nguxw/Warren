@@ -124,7 +124,9 @@ Web 界面 ───┼─HTTP + SSE（127.0.0.1，带 token）──▶ warren 
 | `POST /tasks/:id/reveal` | 在访达中显示工作区、某个文件或最近一次保存的位置 |
 | `GET /automations`、`POST /automations` | 自动化列表和新建（见 [010](010-automations.md)） |
 | `PATCH /automations/:id`、`DELETE /automations/:id`、`POST /automations/:id/run` | 修改（含启用和暂停）、删除、立即运行 |
-| `GET /settings`、`PATCH /settings` | 读取和修改设置 |
+| `GET /skills`、`POST /skills`、`DELETE /skills/:name`、`POST /skills/reveal` | 技能列表、从文件夹安装、删除、在访达中打开技能文件夹（见 [011](011-skills-and-mcp.md)） |
+| `GET /mcp`、`POST /mcp/:name/test` | MCP 服务器的连接状态；重新连接并列出工具。服务器本身在设置里配置 |
+| `GET /settings`、`PATCH /settings` | 读取和修改设置（含 MCP 服务器和停用的技能） |
 | `PUT /secrets/:name`、`DELETE /secrets/:name` | 设置或删除密钥；只写不读 |
 | `POST /pick-folder` | 用系统的文件夹选择框选一个文件夹（macOS） |
 | `GET /triggers` | 连接器收到的事件和路由决定 |

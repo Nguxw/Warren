@@ -1,6 +1,7 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { basename } from "node:path";
 import { LogInvariantError, statusOf, type TaskState } from "@warren/core";
+import type { McpHub } from "@warren/mcp";
 import {
   AutomationPatch,
   AutomationSpec,
@@ -9,6 +10,7 @@ import {
   SendInputRequest,
   TaskStatus,
 } from "@warren/protocol";
+import { type SkillCatalog, SkillError } from "@warren/tools";
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
@@ -25,7 +27,7 @@ import {
 } from "../runtime/artifacts.ts";
 import { type AutomationRunner, UnknownAutomationError } from "../runtime/automations.ts";
 import type { WorkspaceDiff } from "../runtime/diff.ts";
-import { FolderError, type FolderRules } from "../runtime/folders.ts";
+import { checkFolder, FolderError, type FolderRules } from "../runtime/folders.ts";
 import type { Scheduler } from "../runtime/scheduler.ts";
 import { computeStats } from "../runtime/stats.ts";
 import { saveResults, TaskRequestError, taskData } from "../runtime/tasks.ts";
@@ -49,6 +51,8 @@ export interface AppDeps {
   /** Which of the person's folders may be copied from or saved to. */
   folders: FolderRules;
   automations: AutomationRunner;
+  skills: SkillCatalog;
+  mcp: McpHub;
   /** Asks the person to pick a folder with the system's dialog; undefined if they cancel. */
   pickFolder?(prompt: string): Promise<string | undefined>;
   /** Stops a task if it is running and removes its log and its files. */
@@ -97,7 +101,11 @@ export function createApp(deps: AppDeps) {
       return c.json({ error: error.message }, 400);
     }
     if (error instanceof ArtifactPathError) return c.json({ error: error.message }, 404);
-    if (error instanceof FolderError || error instanceof TaskRequestError) {
+    if (
+      error instanceof FolderError ||
+      error instanceof TaskRequestError ||
+      error instanceof SkillError
+    ) {
       return c.json({ error: error.message }, 400);
     }
     if (error instanceof UnknownAutomationError) return c.json({ error: error.message }, 404);
@@ -201,6 +209,43 @@ export function createApp(deps: AppDeps) {
     if (!dir) throw new HTTPException(400, { message: "no folder to save to" });
     const saved = saveResults(state, dir, { ...deps, store });
     return c.json({ destination: saved.destination, files: saved.files, task: view(saved.state) });
+  });
+
+  /** Installed skills, valid or not, with whether each is on. */
+  app.get("/skills", (c) => c.json({ skills: deps.skills.all(), root: deps.skills.root }));
+
+  /** Installs a skill by copying a folder of the person's (one with a SKILL.md) in. */
+  app.post("/skills", async (c) => {
+    const { path } = z.object({ path: z.string() }).parse(await c.req.json());
+    const skill = deps.skills.install(checkFolder(path, deps.folders));
+    return c.json({ skill }, 201);
+  });
+
+  app.delete("/skills/:name", (c) => {
+    deps.skills.remove(c.req.param("name"));
+    return c.json({ deleted: c.req.param("name") });
+  });
+
+  /** Shows the skills folder in Finder, for adding or editing skills by hand. */
+  app.post("/skills/reveal", async (c) => {
+    if (!deps.reveal) throw new HTTPException(501, { message: "not supported on this system" });
+    mkdirSync(deps.skills.root, { recursive: true });
+    await deps.reveal(deps.skills.root);
+    return c.json({ ok: true });
+  });
+
+  /** Each configured MCP server and whether it is connected; configuration is in the settings. */
+  app.get("/mcp", (c) => c.json({ servers: deps.mcp.status() }));
+
+  /** Connects to a server afresh and lists its tools. */
+  app.post("/mcp/:name/test", async (c) => {
+    try {
+      return c.json({ tools: await deps.mcp.test(c.req.param("name")) });
+    } catch (error) {
+      throw new HTTPException(400, {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 
   app.get("/automations", (c) => c.json({ automations: deps.automations.list() }));

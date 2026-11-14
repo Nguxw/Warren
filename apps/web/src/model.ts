@@ -298,12 +298,19 @@ const CATEGORIES: Record<string, StepCategory> = {
   edit_file: "edit",
   write_file: "edit",
   shell: "run",
+  load_skill: "inspect",
   publish_branch: "publish",
   open_pull_request: "publish",
 };
 
 export function categoryOf(tool: string): StepCategory {
   return CATEGORIES[tool] ?? "other";
+}
+
+/** A tool's name for people: an MCP tool as "server · tool", others as they are. */
+export function displayToolName(name: string): string {
+  const mcp = /^mcp__([^_]+(?:-[^_]+)*)__(.+)$/.exec(name);
+  return mcp ? `${mcp[1]} · ${mcp[2]}` : name;
 }
 
 /**
@@ -563,4 +570,51 @@ export function localLink(href: string, base = ""): string | undefined {
     } else parts.push(part);
   }
   return parts.length > 0 ? parts.join("/") : undefined;
+}
+
+/**
+ * A command line as words: spaces separate, quotes group, a backslash escapes the next
+ * character. Enough for `npx -y @scope/server "~/My Documents"`; no expansion of any kind.
+ */
+export function parseCommandLine(line: string): string[] {
+  const words: string[] = [];
+  let word = "";
+  let started = false;
+  let quote: string | undefined;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i] as string;
+    if (ch === "\\" && i + 1 < line.length) {
+      i += 1;
+      word += line[i];
+      started = true;
+    } else if (quote) {
+      if (ch === quote) quote = undefined;
+      else word += ch;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      started = true;
+    } else if (/\s/.test(ch)) {
+      if (started) words.push(word);
+      word = "";
+      started = false;
+    } else {
+      word += ch;
+      started = true;
+    }
+  }
+  if (started) words.push(word);
+  return words;
+}
+
+/** `KEY=value` (or `Header: value`) lines as a record; blank lines and `#` comments are skipped. */
+export function parseLines(text: string, separator: "=" | ":"): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const at = line.indexOf(separator);
+    if (at <= 0) continue;
+    result[line.slice(0, at).trim()] = line.slice(at + 1).trim();
+  }
+  return result;
 }

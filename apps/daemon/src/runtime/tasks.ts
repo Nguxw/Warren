@@ -42,6 +42,9 @@ export function taskData(
     }
   }
   const outputDir = request.outputDir ? checkFolder(request.outputDir, deps.folders) : undefined;
+  const mcpServers = Object.entries(config.mcp.servers)
+    .filter(([, server]) => server.enabled)
+    .map(([name]) => name);
   return {
     title: request.title ?? titleOf(request.instruction),
     instruction: request.instruction,
@@ -50,6 +53,8 @@ export function taskData(
       network: request.network ?? config.tasks.network,
       // With a repository, a task may hand its result back to it and propose it on GitHub.
       privilegedTools: workspace.kind === "clone" ? ["publish_branch", "open_pull_request"] : [],
+      // The MCP servers on when the task starts; a server added later does not widen it.
+      ...(mcpServers.length > 0 && { mcpServers }),
       budget: { maxModelCalls: DEFAULT_MAX_MODEL_CALLS, ...request.budget },
     },
     trigger,
