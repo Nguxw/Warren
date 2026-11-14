@@ -6,6 +6,8 @@
 
 ## 技能
 
+![技能页](images/skills.jpg)
+
 ### 格式
 
 采用 Anthropic Agent Skills 的格式，现有的技能可以直接使用。一个技能是一个文件夹：
@@ -27,7 +29,7 @@ description: Write a sourced research report in Markdown. Use when asked to rese
 ```
 
 - `name` 由小写字母、数字和连字符组成；`description` 写清楚它做什么、什么时候用，模型靠这句话判断要不要加载它。
-- 仓库里的 `examples/skills/research-report` 是一个完整的例子。
+- 仓库里有两个完整的例子：`examples/skills/research-report`（带引用的调研报告，附模板）和 `examples/skills/code-review`（合并前检查改动里的错误）。
 
 ### 安装和管理
 
@@ -36,6 +38,8 @@ description: Write a sourced research report in Markdown. Use when asked to rese
 - **格式错误：** 缺少 `SKILL.md`、名称不合规之类的技能会在页面上显示原因，不会提供给模型。
 
 ### 为一个任务指定技能
+
+![输入 / 弹出技能和操作菜单](images/slash.jpg)
 
 在起始页输入 `/` 或点"+"，选择技能，它会变成输入框里的标签。任务创建时，技能名记在 `task.created` 的 `skills` 里（不存在或已停用的技能会被拒绝），系统提示词会明确要求模型在开始前加载这些技能。任务页的标题下也会列出它们。
 
@@ -49,6 +53,8 @@ description: Write a sourced research report in Markdown. Use when asked to rese
 - **不扩大权限：** 技能只增加说明和文件，不改变 Grant。`load_skill` 的副作用等级是 `read`，崩溃后可以安全地重新执行。
 
 ## MCP 服务器
+
+![MCP 服务器页](images/mcp.jpg)
 
 ### 两种连接方式
 

@@ -85,9 +85,9 @@ test("loading a skill returns its instructions and copies its files into the tas
   expect((await tool.run({ name: "nope" }, { scratch } as never)).outcome).toBe("error");
 });
 
-test("the example skill in the repository is valid", () => {
-  const skill = readSkill(
-    join(import.meta.dir, "..", "..", "..", "examples", "skills", "research-report"),
-  );
-  expect(skill.name).toBe("research-report");
+test("the example skills in the repository are valid", () => {
+  for (const name of ["research-report", "code-review"]) {
+    const skill = readSkill(join(import.meta.dir, "..", "..", "..", "examples", "skills", name));
+    expect(skill.name).toBe(name);
+  }
 });

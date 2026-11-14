@@ -44,12 +44,20 @@
 
 <table>
   <tr>
-    <td><img src="docs/images/home.jpg" alt="起始页：输入框和可选项"></td>
-    <td><img src="docs/images/automations.jpg" alt="自动化列表"></td>
+    <td><img src="docs/images/home.jpg" alt="起始页：输入框、工具栏和起步卡片"></td>
+    <td><img src="docs/images/slash.jpg" alt="输入 / 弹出技能和操作菜单"></td>
   </tr>
   <tr>
     <td align="center">交代一件事，回车就开始</td>
-    <td align="center">按时间表自动运行的任务</td>
+    <td align="center">输入 <code>/</code> 选用技能、切换模型和联网</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/skills.jpg" alt="技能页"></td>
+    <td><img src="docs/images/mcp.jpg" alt="MCP 服务器页"></td>
+  </tr>
+  <tr>
+    <td align="center">技能：教它做某类工作</td>
+    <td align="center">MCP：接上外部工具</td>
   </tr>
 </table>
 
@@ -89,13 +97,23 @@ open src-tauri/target/release/bundle/macos/Warren.app
 
 ### 界面
 
-- **起始页：** 写下要做的事，回车开始。输入 `/` 或点"+"可以选用技能、切换模型和联网；输入框下方可以选择工作文件夹（git 仓库会克隆，其他文件夹会复制）、保存产物的位置和这个任务能用的 MCP 服务器；不选就用默认值。
+- **起始页：** 写下要做的事，回车开始。
+  - 输入 `/` 或点"+"：选用技能、切换模型、开关联网，可以打字筛选。
+  - 输入框下方：工作文件夹（git 仓库会克隆，其他文件夹会复制）、保存产物的位置、这个任务能用的 MCP 服务器；不选就用默认值。
+  - 输入框空着时有三张起步卡片（调研、修测试、整理文件夹），点一下会填好文字并设好对应的选项。
 - **任务页：**
   - 状态卡显示现在怎样、需要你做什么；
   - "动态"是完整的时间线，可以回放到任意一步；
   - "改动"显示仓库任务的 diff；
   - "产物"预览任务写出的文件。
-- **自动化、技能、MCP：** 都在侧栏上方。在已完成的任务上点"定期运行…"，可以把它变成自动化；技能和 MCP 服务器的用法见 [011](docs/011-skills-and-mcp.md)。
+- **自动化、技能、MCP：** 都在侧栏上方，各有一个页面。
+  - 自动化：按每天、每周或每隔几小时运行；在已完成的任务上点"定期运行…"可以直接把它变成自动化。
+  - 技能：添加 Agent Skills 格式的文件夹，仓库里的 `examples/skills/` 有两个例子（调研报告、代码审查）。
+  - MCP：添加本地命令或远程地址，测试连接，按服务器设置是否需要审批。详见 [011](docs/011-skills-and-mcp.md)。
+
+<p align="center">
+  <img src="docs/images/automations.jpg" width="720" alt="自动化页">
+</p>
 - **设置：** 语言、外观、模型、API 密钥、是否默认联网、并发数、哪些动作需要审批。
 
 快捷键：`/` 技能和操作 · `⌘N` 新任务 · `⌘K` 搜索 · `⌘,` 设置 · `↩` 发送 · `⇧↩` 换行。

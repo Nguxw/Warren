@@ -42,6 +42,25 @@ Most coding agents are something you watch: a terminal session editing your dire
 - **Interface:** a bilingual (Chinese and English) web interface and a macOS desktop app (Tauri) with a live timeline, replay and notifications, plus a complete CLI.
 - **Its own credentials only:** everything lives in `~/.warren/`; Warren uses the API keys you give it and never reads or writes the configuration or login of Claude Code, Codex or `gh`.
 
+<table>
+  <tr>
+    <td><img src="docs/images/home.jpg" alt="Start page"></td>
+    <td><img src="docs/images/slash.jpg" alt="The slash menu"></td>
+  </tr>
+  <tr>
+    <td align="center">Hand over a task, press Enter</td>
+    <td align="center">Type <code>/</code> for skills and actions</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/skills.jpg" alt="Skills"></td>
+    <td><img src="docs/images/mcp.jpg" alt="MCP servers"></td>
+  </tr>
+  <tr>
+    <td align="center">Skills teach it kinds of work</td>
+    <td align="center">MCP servers give it outside tools</td>
+  </tr>
+</table>
+
 ## Quick start
 
 **Requirements:** macOS 13 or later, [Bun](https://bun.sh) 1.4+, git, and an API key for a model (OpenAI, Anthropic or any OpenAI-compatible endpoint; a local Ollama needs none).
@@ -73,6 +92,14 @@ open src-tauri/target/release/bundle/macos/Warren.app
 ```
 
 `warren doctor` checks the configuration, keys and sandbox.
+
+## Using it
+
+- **Start page:** say what to do and press Enter. Type `/` (or press +) for skills and quick actions; under the text, choose a folder (a repository is cloned, any other folder copied), where to save, and which MCP servers the task may use. Starter cards set up common kinds of task in one click.
+- **Task page:** a status card says what is happening and what is needed from you; Activity is the full timeline with replay; Changes shows a repository task's diff; Files previews what the task wrote.
+- **Sidebar:** Automations, Skills and MCP each have a page; Settings (bottom left) holds models, API keys, defaults and approvals. Two example skills are in `examples/skills/` (a research report and a code review).
+
+Shortcuts: `/` skills and actions · `⌘N` new task · `⌘K` search · `⌘,` settings · `↩` send · `⇧↩` new line.
 
 ## Command line
 
