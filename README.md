@@ -13,6 +13,7 @@
 > - 中英双语 Web 界面：收件箱、实时时间线、轨迹回放、审批。
 > - 桌面应用（Tauri）与菜单栏图标，macOS 系统通知，launchd 开机常驻，单文件发布。
 > - 任务的命令在 Seatbelt 沙箱里运行；在 200 个任务、519 次 `kill -9` 的混沌测试中，任务全部完成，外部动作无一重复执行。
+> - SWE-bench Verified 随机子集：28 个实例解决 23 个（82%，`gpt-6.1-terra`），中位数每个 $0.16、2 分钟，官方 harness 打分（[009](docs/009-swebench.md)）。
 
 ## 架构
 
@@ -121,6 +122,7 @@ chmod 600 ~/.warren/credentials.env
 - [006 界面与常驻](docs/006-interface.md)
 - [007 连接器：GitHub](docs/007-connectors.md)
 - [008 上下文与指标](docs/008-context-and-metrics.md)
+- [009 SWE-bench 评测](docs/009-swebench.md)
 
 ## 路线图
 

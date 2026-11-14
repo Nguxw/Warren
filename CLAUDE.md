@@ -22,7 +22,8 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 - `apps/web` — React UI bundled by Bun's HTML import and served by the daemon at `/`. View logic lives in pure functions (`model.ts`, `i18n.ts`) with tests. Every UI string goes through `i18n.ts` (Chinese default, English); never hard-code interface text.
 - `packages/connectors` — sources of work (GitHub). Events from webhooks and reconcile polls share content-based `externalId`s; `Intake` dedupes, routes (`core/routing.ts`, pure) and applies in one SQLite transaction.
 - Long tasks: `core/context.ts` plans compaction (never splitting a tool call from its result); the loop records `context.compacted` and the fold applies it.
-- Design docs: `docs/000`–`008`.
+- `evals/swebench/` — SWE-bench Verified subset: `sample.py` draws instances, `run.ts` runs them as ordinary Warren tasks, `score.ts` scores with the official harness in Docker and cleans up (`docs/009`).
+- Design docs: `docs/000`–`009`.
 
 ## Rules that are expensive to break
 

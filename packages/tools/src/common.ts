@@ -66,6 +66,8 @@ export function toolEnv(
       PATH: `${join(scratch, "bin")}:${env.PATH ?? "/usr/bin:/bin"}`,
       TMPDIR: join(scratch, "tmp"),
       XDG_CACHE_HOME: join(scratch, "cache"),
+      // uv keeps the Python versions it installs here; pip and uv caches follow XDG_CACHE_HOME.
+      XDG_DATA_HOME: join(scratch, "data"),
       npm_config_cache: join(scratch, "cache", "npm"),
       BUN_INSTALL_CACHE_DIR: join(scratch, "cache", "bun"),
       PIP_CACHE_DIR: join(scratch, "cache", "pip"),

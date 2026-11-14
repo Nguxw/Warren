@@ -10,3 +10,4 @@ dist/
 .env.*
 *.bun-build
 apps/desktop/src-tauri/target/
+evals/swebench/runs/

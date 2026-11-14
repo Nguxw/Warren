@@ -65,6 +65,7 @@
         "@warren/core": "workspace:*",
         "@warren/daemon": "workspace:*",
         "@warren/protocol": "workspace:*",
+        "@warren/tools": "workspace:*",
       },
     },
     "packages/connectors": {
