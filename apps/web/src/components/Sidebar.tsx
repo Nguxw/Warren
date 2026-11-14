@@ -5,6 +5,7 @@ import { formatAgo, type MessageKey, statusLabel } from "../i18n.ts";
 import {
   Alert,
   Check,
+  Clock,
   Close,
   Gear,
   Inbox,
@@ -40,7 +41,8 @@ export function Sidebar(props: {
   onDelete(task: TaskSummary): void;
   onTriggers(): void;
   onSettings(): void;
-  page: "tasks" | "triggers" | "settings";
+  onAutomations(): void;
+  page: "tasks" | "triggers" | "settings" | "automations";
 }) {
   const { t } = useI18n();
   const filtered = useMemo(() => {
@@ -148,6 +150,14 @@ export function Sidebar(props: {
         >
           <Gear size={14} />
           {t("app.settings")}
+        </button>
+        <button
+          type="button"
+          className={`foot-link ${props.page === "automations" ? "on" : ""}`}
+          onClick={props.onAutomations}
+        >
+          <Clock size={14} />
+          {t("auto.open")}
         </button>
         <button
           type="button"

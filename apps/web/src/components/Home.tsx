@@ -65,7 +65,7 @@ export function Home(props: {
 }
 
 /** Recent folders, newest first, from the tasks the daemon already knows. */
-function recentFolders(tasks: readonly TaskSummary[]): { name: string; path: string }[] {
+export function recentFolders(tasks: readonly TaskSummary[]): { name: string; path: string }[] {
   const seen = new Map<string, { name: string; path: string; at: number }>();
   for (const task of tasks) {
     if (!task.repoPath || !task.repo) continue;
@@ -209,7 +209,7 @@ function TaskComposer(props: {
 }
 
 /** A folder chosen only when wanted: recent ones, the system's picker, or a typed path. */
-function FolderMenu(props: {
+export function FolderMenu(props: {
   icon: ReactNode;
   label: string;
   value: string;
@@ -217,6 +217,7 @@ function FolderMenu(props: {
   hint: string;
   prompt: string;
   placeholder: string;
+  placement?: "above" | "below";
   onChange(path: string): void;
 }) {
   const { t } = useI18n();
@@ -239,6 +240,7 @@ function FolderMenu(props: {
       }
       active={Boolean(props.value)}
       title={props.value || props.hint}
+      {...(props.placement && { placement: props.placement })}
       onClear={props.value ? () => props.onChange("") : undefined}
     >
       {(close) => (
@@ -315,7 +317,7 @@ function PathInput(props: { placeholder: string; onApply(path: string): void }) 
 const OUTPUT_KEY = "warren.outputDir";
 
 /** The folder results were last saved to, offered (not chosen) for the next task. */
-function savedOutputDir(): string | undefined {
+export function savedOutputDir(): string | undefined {
   try {
     return localStorage.getItem(OUTPUT_KEY) ?? undefined;
   } catch {

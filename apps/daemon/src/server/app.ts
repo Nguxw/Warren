@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename } from "node:path";
 import { LogInvariantError, statusOf, type TaskState } from "@warren/core";
 import {
+  AutomationPatch,
+  AutomationSpec,
   CreateTaskRequest,
-  type Grant,
   ResolveAttentionRequest,
   SendInputRequest,
   TaskStatus,
@@ -18,21 +19,16 @@ import { SecretUpdate, type Settings, SettingsError, SettingsPatch } from "../co
 import {
   ArtifactPathError,
   type Baseline,
-  exportArtifacts,
   listArtifacts,
   readArtifact,
   resolveArtifact,
 } from "../runtime/artifacts.ts";
+import { type AutomationRunner, UnknownAutomationError } from "../runtime/automations.ts";
 import type { WorkspaceDiff } from "../runtime/diff.ts";
-import {
-  checkCopySize,
-  checkFolder,
-  exportFolder,
-  FolderError,
-  type FolderRules,
-} from "../runtime/folders.ts";
+import { FolderError, type FolderRules } from "../runtime/folders.ts";
 import type { Scheduler } from "../runtime/scheduler.ts";
 import { computeStats } from "../runtime/stats.ts";
+import { saveResults, TaskRequestError, taskData } from "../runtime/tasks.ts";
 import { type TaskStore, UnknownTaskError } from "../store/task-store.ts";
 import type { TriggerStore } from "../store/trigger-store.ts";
 import type { Notifier } from "./notifier.ts";
@@ -52,6 +48,7 @@ export interface AppDeps {
   baselineOf(taskId: string): Baseline | undefined;
   /** Which of the person's folders may be copied from or saved to. */
   folders: FolderRules;
+  automations: AutomationRunner;
   /** Asks the person to pick a folder with the system's dialog; undefined if they cancel. */
   pickFolder?(prompt: string): Promise<string | undefined>;
   /** Stops a task if it is running and removes its log and its files. */
@@ -67,10 +64,8 @@ export interface AppDeps {
   diff?(task: TaskState): Promise<WorkspaceDiff | undefined>;
 }
 
-const DEFAULT_MAX_MODEL_CALLS = 100;
-
 export function createApp(deps: AppDeps) {
-  const { store, scheduler, notifier, config } = deps;
+  const { store, scheduler, notifier } = deps;
   const heartbeatMs = deps.heartbeatMs ?? 10_000;
   const app = new Hono();
 
@@ -102,7 +97,10 @@ export function createApp(deps: AppDeps) {
       return c.json({ error: error.message }, 400);
     }
     if (error instanceof ArtifactPathError) return c.json({ error: error.message }, 404);
-    if (error instanceof FolderError) return c.json({ error: error.message }, 400);
+    if (error instanceof FolderError || error instanceof TaskRequestError) {
+      return c.json({ error: error.message }, 400);
+    }
+    if (error instanceof UnknownAutomationError) return c.json({ error: error.message }, 404);
     return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
   });
 
@@ -129,39 +127,8 @@ export function createApp(deps: AppDeps) {
 
   app.post("/tasks", async (c) => {
     const body = CreateTaskRequest.parse(await c.req.json());
-    const modelRole = body.modelRole ?? "main";
-    if (!config.models[modelRole]) {
-      throw new HTTPException(400, {
-        message: `unknown model role "${modelRole}"; configured: ${Object.keys(config.models).join(", ")}`,
-      });
-    }
-    let workspace: Grant["workspace"] = { kind: "none" };
-    if (body.repo) {
-      const source = checkFolder(resolve(body.repo), deps.folders);
-      // A repository is cloned, so its result comes back as a branch; any other folder is
-      // copied, and its result is saved where the person chooses.
-      if (existsSync(join(source, ".git"))) workspace = { kind: "clone", source };
-      else {
-        checkCopySize(source);
-        workspace = { kind: "copy", source };
-      }
-    }
-    const outputDir = body.outputDir ? checkFolder(body.outputDir, deps.folders) : undefined;
     const id = deps.newId();
-    const state = store.create(id, {
-      title: body.title ?? titleOf(body.instruction),
-      instruction: body.instruction,
-      grant: {
-        workspace,
-        network: body.network ?? config.tasks.network,
-        // With a repository, a task may hand its result back to it and propose it on GitHub.
-        privilegedTools: workspace.kind === "clone" ? ["publish_branch", "open_pull_request"] : [],
-        budget: { maxModelCalls: DEFAULT_MAX_MODEL_CALLS, ...body.budget },
-      },
-      trigger: { source: "manual" },
-      modelRole,
-      ...(outputDir && { outputDir }),
-    });
+    const state = store.create(id, taskData(body, { source: "manual" }, deps));
     scheduler.wake(id);
     return c.json({ task: view(state) }, 201);
   });
@@ -232,24 +199,31 @@ export function createApp(deps: AppDeps) {
     const body = z.object({ dir: z.string().optional() }).parse(await c.req.json());
     const dir = body.dir ?? state.outputDir;
     if (!dir) throw new HTTPException(400, { message: "no folder to save to" });
-    if (state.grant.workspace.kind === "clone") {
-      throw new HTTPException(400, { message: "a repository task's result is its branch" });
-    }
-    const target = checkFolder(dir, deps.folders);
-    const root = deps.workspaceOf(state.id);
-    if (!existsSync(root)) throw new HTTPException(404, { message: "no workspace yet" });
-    const { files } = listArtifacts(root, deps.baselineOf(state.id));
-    if (files.length === 0) throw new HTTPException(400, { message: "nothing to save" });
-    const destination = exportFolder(target, state.title, `warren-${state.id.slice(-8)}`);
-    const copied = exportArtifacts(
-      root,
-      files.map((f) => f.path),
-      destination,
-    );
-    const next = store.append(state.id, [
-      { type: "artifacts.exported", data: { destination, files: copied } },
-    ]);
-    return c.json({ destination, files: copied, task: view(next) });
+    const saved = saveResults(state, dir, { ...deps, store });
+    return c.json({ destination: saved.destination, files: saved.files, task: view(saved.state) });
+  });
+
+  app.get("/automations", (c) => c.json({ automations: deps.automations.list() }));
+
+  app.post("/automations", async (c) => {
+    const spec = AutomationSpec.parse(await c.req.json());
+    return c.json({ automation: deps.automations.create(spec) }, 201);
+  });
+
+  app.patch("/automations/:id", async (c) => {
+    const patch = AutomationPatch.parse(await c.req.json());
+    return c.json({ automation: deps.automations.update(c.req.param("id"), patch) });
+  });
+
+  /** Deletes the automation; the tasks it started stay. */
+  app.delete("/automations/:id", (c) => {
+    deps.automations.delete(c.req.param("id"));
+    return c.json({ deleted: c.req.param("id") });
+  });
+
+  app.post("/automations/:id/run", (c) => {
+    const taskId = deps.automations.runNow(c.req.param("id"));
+    return c.json({ taskId });
   });
 
   /** Opens the system's folder picker for the interface, which cannot see paths itself. */
@@ -437,10 +411,4 @@ export function createApp(deps: AppDeps) {
 /** A task as the API shows it: its state plus the derived status. */
 function view(state: TaskState) {
   return { ...state, status: statusOf(state) };
-}
-
-/** The instruction's first line; the repository is shown on its own, not in the title. */
-function titleOf(instruction: string): string {
-  const line = instruction.split("\n")[0]?.trim() ?? "";
-  return line.length > 72 ? `${line.slice(0, 71)}…` : line;
 }

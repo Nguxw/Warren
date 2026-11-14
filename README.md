@@ -69,6 +69,7 @@ warren run --network --repo . "…"     # 需要安装依赖等联网操作时
 warren run --repo ~/Documents/资料 --output ~/Desktop "整理成一份摘要"   # 普通文件夹会复制一份，原文件夹不动
 warren save <id> [<目录>]              # 把任务的产物保存到目录（默认 --output）
 warren delete <id> --yes              # 删除任务：对话记录和工作区（运行中的会先停止）
+warren automations [run <id>]         # 列出自动化（按时间表开始的任务），或立即运行一个
 warren tasks                          # 看还在进行的任务
 warren follow <id>                    # 跟随一个任务
 warren answer <id> "<回答>"           # 回答任务的问题
@@ -126,6 +127,7 @@ chmod 600 ~/.warren/credentials.env
 - [007 连接器：GitHub](docs/007-connectors.md)
 - [008 上下文与指标](docs/008-context-and-metrics.md)
 - [009 SWE-bench 评测](docs/009-swebench.md)
+- [010 自动化](docs/010-automations.md)
 
 ## 路线图
 

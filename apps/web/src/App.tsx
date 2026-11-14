@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskEvent } from "@warren/protocol";
+import type { AutomationSpec, TaskEvent } from "@warren/protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, subscribe, Unauthorized } from "./api.ts";
+import { AutomationsView } from "./components/Automations.tsx";
 import { DeleteTask } from "./components/DeleteTask.tsx";
 import { Home } from "./components/Home.tsx";
 import { SettingsView } from "./components/SettingsView.tsx";
@@ -34,7 +35,9 @@ function Shell() {
   const [selected, setSelected] = useState<string | null>(() =>
     new URLSearchParams(window.location.search).get("task"),
   );
-  const [page, setPage] = useState<"tasks" | "triggers" | "settings">("tasks");
+  const [page, setPage] = useState<"tasks" | "triggers" | "settings" | "automations">("tasks");
+  const [automationDraft, setAutomationDraft] = useState<Partial<AutomationSpec>>();
+  const clearDraft = useCallback(() => setAutomationDraft(undefined), []);
   const [deleting, setDeleting] = useState<{ id: string; title: string; status: string }>();
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -48,7 +51,7 @@ function Shell() {
     setPage("tasks");
     history.replaceState(null, "", id ? `?task=${id}` : window.location.pathname);
   }, []);
-  const open = useCallback((next: "triggers" | "settings") => {
+  const open = useCallback((next: "triggers" | "settings" | "automations") => {
     setPage(next);
     setSelected(null);
     history.replaceState(null, "", window.location.pathname);
@@ -96,14 +99,30 @@ function Shell() {
         page={page}
         onTriggers={() => open("triggers")}
         onSettings={() => open("settings")}
+        onAutomations={() => open("automations")}
       />
       <main className="main">
         {page === "settings" ? (
           <SettingsView />
+        ) : page === "automations" ? (
+          <AutomationsView
+            tasks={tasks.data ?? []}
+            onOpenTask={(id) => select(id)}
+            draft={automationDraft}
+            onDraftUsed={clearDraft}
+          />
         ) : page === "triggers" ? (
           <TriggersView onOpenTask={(id) => select(id)} />
         ) : selected ? (
-          <TaskView key={selected} id={selected} onDelete={setDeleting} />
+          <TaskView
+            key={selected}
+            id={selected}
+            onDelete={setDeleting}
+            onSchedule={(draft) => {
+              setAutomationDraft(draft);
+              open("automations");
+            }}
+          />
         ) : (
           <Home tasks={tasks.data ?? []} inputRef={composerRef} onCreated={(id) => select(id)} />
         )}

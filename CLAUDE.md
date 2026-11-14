@@ -23,7 +23,8 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 - `packages/connectors` — sources of work (GitHub). Events from webhooks and reconcile polls share content-based `externalId`s; `Intake` dedupes, routes (`core/routing.ts`, pure) and applies in one SQLite transaction.
 - Long tasks: `core/context.ts` plans compaction (never splitting a tool call from its result); the loop records `context.compacted` and the fold applies it.
 - `evals/swebench/` — SWE-bench Verified subset: `sample.py` draws instances, `run.ts` runs them as ordinary Warren tasks, `score.ts` scores with the official harness in Docker and cleans up (`docs/009`).
-- Design docs: `docs/000`–`009`.
+- Automations (`docs/010`): schedule math is pure in `core/schedule.ts`; `daemon/runtime/automations.ts` starts runs (task + run record in one transaction); task creation and saving results are shared in `daemon/runtime/tasks.ts`.
+- Design docs: `docs/000`–`010`.
 
 ## Rules that are expensive to break
 

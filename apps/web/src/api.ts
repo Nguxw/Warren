@@ -1,5 +1,8 @@
 import type { TaskState } from "@warren/core";
 import type {
+  Automation,
+  AutomationPatch,
+  AutomationSpec,
   CreateTaskRequest,
   TaskEvent,
   TaskStatus,
@@ -153,6 +156,17 @@ export const api = {
   /** The system's folder picker, shown by the daemon; null when the person cancels. */
   pickFolder: (prompt: string) =>
     request<{ path: string | null }>("POST", "/pick-folder", { prompt }).then((r) => r.path),
+  automations: () =>
+    request<{ automations: Automation[] }>("GET", "/automations").then((r) => r.automations),
+  createAutomation: (spec: AutomationSpec) =>
+    request<{ automation: Automation }>("POST", "/automations", spec).then((r) => r.automation),
+  updateAutomation: (id: string, patch: AutomationPatch) =>
+    request<{ automation: Automation }>("PATCH", `/automations/${id}`, patch).then(
+      (r) => r.automation,
+    ),
+  deleteAutomation: (id: string) => request<{ deleted: string }>("DELETE", `/automations/${id}`),
+  runAutomation: (id: string) =>
+    request<{ taskId?: string }>("POST", `/automations/${id}/run`).then((r) => r.taskId),
   settings: () => request<{ settings: Settings }>("GET", "/settings").then((r) => r.settings),
   updateSettings: (patch: SettingsPatch) =>
     request<{ settings: Settings }>("PATCH", "/settings", patch).then((r) => r.settings),

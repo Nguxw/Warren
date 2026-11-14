@@ -67,6 +67,24 @@ export const MIGRATIONS: readonly Migration[] = [
       ) STRICT;
     `,
   },
+  {
+    version: 3,
+    name: "automations",
+    sql: `
+      -- Tasks started on a schedule. spec is the AutomationSpec as JSON; anchor is the time the
+      -- schedule counts from until the first run (creation, or the last change of schedule);
+      -- last_run is the latest run as JSON.
+      CREATE TABLE automations (
+        id         TEXT PRIMARY KEY,
+        spec       TEXT NOT NULL,
+        enabled    INTEGER NOT NULL,
+        anchor     INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_run   TEXT
+      ) STRICT;
+    `,
+  },
 ];
 
 export class MigrationError extends Error {

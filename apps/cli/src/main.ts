@@ -10,7 +10,7 @@ import {
   startDaemon,
   warrenPaths,
 } from "@warren/daemon";
-import type { TaskEvent, TaskSummary, TriggerRecord } from "@warren/protocol";
+import type { Automation, TaskEvent, TaskSummary, TriggerRecord } from "@warren/protocol";
 import { seatbeltAvailable } from "@warren/tools";
 import ui from "@warren/web/index.html";
 import { CliError, DaemonClient } from "./client.ts";
@@ -46,6 +46,7 @@ Usage:
       --detach                         Do not follow the task
   warren save <id> [<dir>]           Save a task's files to <dir> (default: its --output)
   warren delete <id> --yes           Delete a task: its log and workspace (stops it if running)
+  warren automations [run <id>]      List automations, or run one now (create them in the UI)
   warren tasks [--all]               List tasks (default: not ended)
   warren show <id>                   Print a task's whole history
   warren follow <id>                 Follow a task until it needs you or stops
@@ -107,6 +108,8 @@ async function main(argv: string[]): Promise<number> {
       return doctor();
     case "triggers":
       return triggers(rest);
+    case "automations":
+      return automations(rest);
     case "stats":
       return stats();
     case undefined:
@@ -380,6 +383,35 @@ async function triggers(args: string[]): Promise<number> {
     return 0;
   }
   for (const record of list) console.log(renderTrigger(record));
+  return 0;
+}
+
+async function automations(args: string[]): Promise<number> {
+  const api = client();
+  if (args[0] === "run") {
+    if (!args[1]) throw new CliError("usage: warren automations run <id>");
+    const { taskId } = await api.request<{ taskId: string }>("POST", `/automations/${args[1]}/run`);
+    console.log(`started ${shortId(taskId)}`);
+    return 0;
+  }
+  const { automations: list } = await api.request<{ automations: Automation[] }>(
+    "GET",
+    "/automations",
+  );
+  if (list.length === 0) {
+    console.log(dim("No automations yet. Create one in the interface (warren open)."));
+    return 0;
+  }
+  for (const a of list) {
+    const schedule =
+      a.schedule.kind === "interval"
+        ? `every ${a.schedule.hours} h`
+        : a.schedule.kind === "daily"
+          ? `daily ${a.schedule.time}`
+          : `weekly ${a.schedule.days.join(",")} ${a.schedule.time}`;
+    const next = a.nextRunAt ? `next ${new Date(a.nextRunAt).toLocaleString()}` : "paused";
+    console.log(`${dim(a.id.slice(-8))}  ${bold(a.name)}  ${schedule} · ${next}`);
+  }
   return 0;
 }
 

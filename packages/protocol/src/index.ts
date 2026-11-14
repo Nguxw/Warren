@@ -1,4 +1,5 @@
 export * from "./api.ts";
+export * from "./automation.ts";
 export * from "./events.ts";
 export * from "./grant.ts";
 export * from "./items.ts";

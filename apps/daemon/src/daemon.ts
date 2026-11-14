@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { ModelResolver, Tool } from "@warren/core";
-import { DaemonInfo } from "@warren/protocol";
+import { automationOf, DaemonInfo, type TaskEvent } from "@warren/protocol";
 import {
   builtinTools,
   noSandbox,
@@ -14,15 +14,18 @@ import { type Config, loadConfig } from "./config/config.ts";
 import { loadSecrets } from "./config/secrets.ts";
 import { Settings } from "./config/settings.ts";
 import { warrenPaths } from "./paths.ts";
+import { AutomationRunner } from "./runtime/automations.ts";
 import { workspaceDiff } from "./runtime/diff.ts";
 import { GitHubRuntime } from "./runtime/github.ts";
 import { Intake } from "./runtime/intake.ts";
 import { modelResolver, providerClients, secretStatus } from "./runtime/models.ts";
 import { macNotify, type Notify, taskNotifications } from "./runtime/notifications.ts";
 import { type Logger, Scheduler, stderrLogger } from "./runtime/scheduler.ts";
+import { saveResults } from "./runtime/tasks.ts";
 import { branchName, Workspaces } from "./runtime/workspace.ts";
 import { createApp } from "./server/app.ts";
 import { Notifier } from "./server/notifier.ts";
+import { AutomationStore } from "./store/automation-store.ts";
 import { openDatabase } from "./store/database.ts";
 import { type Clock, systemClock, TaskStore } from "./store/task-store.ts";
 import { TriggerStore } from "./store/trigger-store.ts";
@@ -43,6 +46,8 @@ export interface DaemonOptions {
   ui?: Bun.HTMLBundle;
   /** Desktop notifications; defaults to macOS Notification Center when the config enables it. */
   notify?: Notify;
+  /** How often automations are checked for due runs; tests call `automations.tick()` instead. */
+  automationIntervalMs?: number;
 }
 
 export interface RunningDaemon {
@@ -52,6 +57,7 @@ export interface RunningDaemon {
   scheduler: Scheduler;
   intake: Intake;
   github: GitHubRuntime | undefined;
+  automations: AutomationRunner;
   stop(): Promise<void>;
 }
 
@@ -100,6 +106,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     notifier.notify();
     notifications(events);
     github?.onCommit(events);
+    autoSave(events);
   });
   const triggers = new TriggerStore(db);
   const workspaces = new Workspaces(paths.tasks);
@@ -140,6 +147,47 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     });
   }
 
+  const folders = { warrenHome: paths.home };
+  const automations = new AutomationRunner({
+    db,
+    automations: new AutomationStore(db),
+    tasks: store,
+    config,
+    folders,
+    newId: () => Bun.randomUUIDv7(),
+    now,
+    wake: (id) => scheduler.wake(id),
+    logger,
+  });
+  /**
+   * A run of an automation that names a folder to save to saves its files there when it
+   * completes: the person chose that folder for every run when setting the automation up.
+   */
+  function autoSave(events: readonly TaskEvent[]): void {
+    for (const event of events) {
+      if (event.type !== "task.ended" || event.data.outcome !== "completed") continue;
+      const state = store.get(event.taskId);
+      if (!state?.outputDir || !automationOf(state.trigger)) continue;
+      const dir = state.outputDir;
+      // After the commit that ended the task, outside its transaction.
+      queueMicrotask(() => {
+        try {
+          saveResults(state, dir, {
+            store,
+            folders,
+            workspaceOf: (id) => workspaces.pathOf(id),
+            baselineOf: (id) => workspaces.baselineOf(id),
+          });
+        } catch (error) {
+          logger.error("could not save an automation's results", {
+            taskId: state.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      });
+    }
+  }
+
   const token = loadToken(paths.token);
   const app = createApp({
     store,
@@ -168,7 +216,8 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       logger.info("task deleted", { taskId: id });
     },
     baselineOf: (id) => workspaces.baselineOf(id),
-    folders: { warrenHome: paths.home },
+    folders,
+    automations,
     ...(process.platform === "darwin" && { pickFolder: chooseFolder }),
     ...(process.platform === "darwin" && { reveal: revealInFinder }),
     sandbox: sandbox.name,
@@ -215,6 +264,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
   chmodSync(paths.daemonInfo, 0o600);
 
   scheduler.resumeAll();
+  automations.start(options.automationIntervalMs);
   await github?.start();
   logger.info("daemon started", { port: info.port, home: paths.home });
 
@@ -226,8 +276,10 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     scheduler,
     intake,
     github,
+    automations,
     stop() {
       stopping ??= (async () => {
+        automations.stop();
         await github?.stop();
         await scheduler.stop();
         await server.stop(true);

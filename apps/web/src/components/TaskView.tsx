@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { foldEvents, statusOf } from "@warren/core";
+import { type AutomationSpec, automationOf } from "@warren/protocol";
 import { useMemo, useState } from "react";
 import { api, type TaskView as Task } from "../api.ts";
 import { useI18n, useNow } from "../context.tsx";
@@ -46,9 +47,12 @@ import { StatusIcon } from "./Sidebar.tsx";
 export function TaskView({
   id,
   onDelete,
+  onSchedule,
 }: {
   id: string;
   onDelete(task: { id: string; title: string; status: string }): void;
+  /** Opens a new automation that repeats this task. */
+  onSchedule(draft: Partial<AutomationSpec>): void;
 }) {
   const { t } = useI18n();
   const task = useQuery({ queryKey: ["task", id], queryFn: () => api.task(id) });
@@ -119,6 +123,7 @@ export function TaskView({
           diff={diff.data}
           files={hasRepo ? undefined : files.data?.files}
           onChanges={() => setTab("changes")}
+          onSchedule={() => onSchedule(draftOf(task.data))}
           onFile={(path) => {
             setOpenFile(path);
             setTab("files");
@@ -270,6 +275,12 @@ function TaskHeader(props: {
             {repo.split("/").at(-1)}
           </span>
         )}
+        {automationOf(task.trigger) && (
+          <span className="meta-automation">
+            <Clock size={13} />
+            {t("auto.badge")}
+          </span>
+        )}
         <span title={t("meta.modelTitle")}>
           <Cpu size={13} />
           {task.modelRole ?? "main"}
@@ -308,6 +319,7 @@ function StatusCard(props: {
   files: { path: string }[] | undefined;
   onChanges(): void;
   onFile(path: string): void;
+  onSchedule(): void;
 }) {
   const { t } = useI18n();
   const { task } = props;
@@ -386,6 +398,12 @@ function StatusCard(props: {
         )}
         {(produced.length > 0 || props.diff) && <RevealChip taskId={task.id} />}
         {produced.length > 0 && <SaveChip task={task} />}
+        {!automationOf(task.trigger) && (
+          <button type="button" className="chip" onClick={props.onSchedule}>
+            <Clock size={14} />
+            {t("auto.fromTask")}
+          </button>
+        )}
         {props.diff && (
           <button type="button" className="chip" onClick={props.onChanges}>
             {files.length > 0
@@ -396,6 +414,19 @@ function StatusCard(props: {
       </div>
     </section>
   );
+}
+
+/** A new automation's fields, taken from a task that is to be repeated. */
+function draftOf(task: Task): Partial<AutomationSpec> {
+  const { workspace } = task.grant;
+  return {
+    name: task.title,
+    instruction: task.instruction,
+    ...(workspace.kind !== "none" && { repo: workspace.source }),
+    ...(task.outputDir && { outputDir: task.outputDir }),
+    ...(task.modelRole && { modelRole: task.modelRole }),
+    network: task.grant.network,
+  };
 }
 
 function RevealChip({ taskId }: { taskId: string }) {

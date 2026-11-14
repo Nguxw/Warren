@@ -1,4 +1,4 @@
-import type { TaskStatus } from "@warren/protocol";
+import type { Schedule, TaskStatus } from "@warren/protocol";
 import { durationParts, type StepCategory, type ToolStatus } from "./model.ts";
 
 /**
@@ -64,6 +64,61 @@ const zh = {
   "delete.cancel": "取消",
   "delete.confirm": "删除",
   "delete.deleting": "删除中…",
+  "schedule.daily": "每天 {time}",
+  "schedule.weekdays": "工作日 {time}",
+  "schedule.weekly": "每周{days} {time}",
+  "schedule.interval": "每 {n} 小时",
+  "weekday.0": "日",
+  "weekday.1": "一",
+  "weekday.2": "二",
+  "weekday.3": "三",
+  "weekday.4": "四",
+  "weekday.5": "五",
+  "weekday.6": "六",
+  "list.sep": "、",
+  "when.today": "今天 {time}",
+  "when.tomorrow": "明天 {time}",
+  "when.yesterday": "昨天 {time}",
+  "when.date": "{month}月{day}日 {time}",
+  "auto.open": "自动化",
+  "auto.title": "自动化",
+  "auto.intro":
+    "按时间表自动开始的任务，比如每天早上的调研报告。每次运行都是一个普通任务，在同样的沙箱和独立工作区里完成；电脑休眠时错过的运行，醒来后只补一次。",
+  "auto.new": "新建自动化",
+  "auto.empty": "还没有自动化",
+  "auto.emptyHint":
+    "例如：每天 9:00 调研 GitHub 热榜，报告自动保存到桌面。也可以在已完成的任务上点\u201c定期运行…\u201d。",
+  "auto.next": "下次 {when}",
+  "auto.paused": "已暂停",
+  "auto.lastStarted": "上次 {when}",
+  "auto.lastSkipped": "上次 {when} 跳过：{reason}",
+  "auto.never": "还没运行过",
+  "auto.viewTask": "查看任务",
+  "auto.runNow": "立即运行",
+  "auto.edit": "编辑",
+  "auto.delete": "删除",
+  "auto.deleteConfirm": "确认删除",
+  "auto.enabled": "启用或暂停",
+  "auto.saveTo": "保存到 {dir}",
+  "auto.editorNew": "新建自动化",
+  "auto.editorEdit": "编辑自动化",
+  "auto.name": "名称",
+  "auto.namePlaceholder": "例如：GitHub 热榜晨报",
+  "auto.instruction": "每次要做的事",
+  "auto.instructionPlaceholder": "描述每次运行要完成的事…",
+  "auto.schedule": "频率",
+  "auto.kind.daily": "每天",
+  "auto.kind.weekly": "每周",
+  "auto.kind.interval": "每隔几小时",
+  "auto.at": "时间",
+  "auto.days": "星期",
+  "auto.hours": "间隔（小时）",
+  "auto.outputHint": "每次完成后自动保存到这里，放进以任务命名的新文件夹。",
+  "auto.cancel": "取消",
+  "auto.save": "保存",
+  "auto.create": "创建",
+  "auto.fromTask": "定期运行…",
+  "auto.badge": "来自自动化",
   "home.title": "今天要 Warren 做什么？",
   "home.body": "说清楚要完成的事，回车就开始。它在后台的独立工作区里完成，只在需要你的时候打扰你。",
   "home.placeholder": "描述要完成的事…",
@@ -348,6 +403,62 @@ const en: Record<MessageKey, string> = {
   "delete.cancel": "Cancel",
   "delete.confirm": "Delete",
   "delete.deleting": "Deleting…",
+  "schedule.daily": "Daily at {time}",
+  "schedule.weekdays": "Weekdays at {time}",
+  "schedule.weekly": "{days} at {time}",
+  "schedule.interval": "Every {n} h",
+  "weekday.0": "Sun",
+  "weekday.1": "Mon",
+  "weekday.2": "Tue",
+  "weekday.3": "Wed",
+  "weekday.4": "Thu",
+  "weekday.5": "Fri",
+  "weekday.6": "Sat",
+  "list.sep": ", ",
+  "when.today": "today {time}",
+  "when.tomorrow": "tomorrow {time}",
+  "when.yesterday": "yesterday {time}",
+  "when.date": "{month}/{day} {time}",
+  "auto.open": "Automations",
+  "auto.title": "Automations",
+  "auto.intro":
+    "Tasks that start on a schedule, such as a morning research report. Each run is an ordinary task in the same sandbox and its own workspace; runs missed while the computer slept are made up once when it wakes.",
+  "auto.new": "New automation",
+  "auto.empty": "No automations yet",
+  "auto.emptyHint":
+    "For example: research GitHub trending every day at 9:00 and save the report to the Desktop. Or press \u201cRun on a schedule…\u201d on a finished task.",
+  "auto.next": "Next {when}",
+  "auto.paused": "Paused",
+  "auto.lastStarted": "Last {when}",
+  "auto.lastSkipped": "Skipped {when}: {reason}",
+  "auto.never": "Not run yet",
+  "auto.viewTask": "View task",
+  "auto.runNow": "Run now",
+  "auto.edit": "Edit",
+  "auto.delete": "Delete",
+  "auto.deleteConfirm": "Confirm",
+  "auto.enabled": "Turn on or pause",
+  "auto.saveTo": "Saves to {dir}",
+  "auto.editorNew": "New automation",
+  "auto.editorEdit": "Edit automation",
+  "auto.name": "Name",
+  "auto.namePlaceholder": "e.g. GitHub trending, mornings",
+  "auto.instruction": "What to do each time",
+  "auto.instructionPlaceholder": "Describe what each run should do…",
+  "auto.schedule": "Schedule",
+  "auto.kind.daily": "Daily",
+  "auto.kind.weekly": "Weekly",
+  "auto.kind.interval": "Every few hours",
+  "auto.at": "Time",
+  "auto.days": "Days",
+  "auto.hours": "Every (hours)",
+  "auto.outputHint":
+    "Each run's files are saved here when it completes, in a new folder named after the task.",
+  "auto.cancel": "Cancel",
+  "auto.save": "Save",
+  "auto.create": "Create",
+  "auto.fromTask": "Run on a schedule…",
+  "auto.badge": "From an automation",
   "home.title": "What should Warren do?",
   "home.body":
     "Say what needs doing and press Enter. It works in its own workspace in the background and only interrupts you when it needs you.",
@@ -640,4 +751,30 @@ export function saveLang(lang: Lang): void {
   } catch {
     // Without storage the choice lasts until the page reloads.
   }
+}
+
+/** A schedule in words: "每天 09:00", "工作日 09:00", "每周一、三 09:00", "每 6 小时". */
+export function describeSchedule(t: Translate, schedule: Schedule): string {
+  if (schedule.kind === "interval") return t("schedule.interval", { n: schedule.hours });
+  const { time } = schedule;
+  if (schedule.kind === "daily") return t("schedule.daily", { time });
+  const days = [...new Set(schedule.days)].sort((a, b) => a - b);
+  if (days.length === 7) return t("schedule.daily", { time });
+  if (days.join() === "1,2,3,4,5") return t("schedule.weekdays", { time });
+  // Monday first, as calendars here are read.
+  const ordered = [...days.filter((d) => d !== 0), ...days.filter((d) => d === 0)];
+  const names = ordered.map((d) => t(`weekday.${d}` as MessageKey)).join(t("list.sep"));
+  return t("schedule.weekly", { days: names, time });
+}
+
+/** A time near now in words: "今天 09:00", "明天 09:00", "11月18日 09:00". */
+export function formatWhen(t: Translate, at: number, now: number): string {
+  const date = new Date(at);
+  const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const offset = Math.round((day(date) - day(new Date(now))) / 86_400_000);
+  if (offset === 0) return t("when.today", { time });
+  if (offset === 1) return t("when.tomorrow", { time });
+  if (offset === -1) return t("when.yesterday", { time });
+  return t("when.date", { month: date.getMonth() + 1, day: date.getDate(), time });
 }
