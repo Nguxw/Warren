@@ -119,9 +119,10 @@ const zh = {
   "auto.create": "创建",
   "auto.fromTask": "定期运行…",
   "auto.badge": "来自自动化",
-  "home.title": "今天要 Warren 做什么？",
-  "home.body": "说清楚要完成的事，回车就开始。它在后台的独立工作区里完成，只在需要你的时候打扰你。",
-  "home.placeholder": "描述要完成的事…",
+  "home.title": "今天想让 Warren 做什么？",
+  "home.body":
+    "调研、写代码、整理文件，交给它在后台完成。有了结果，或者需要你拿主意时，它会通知你。",
+  "home.placeholder": "交代一件事…",
   "home.shortcuts": "↩ 发送 · ⇧↩ 换行 · ⌘N 回到这里 · ⌘K 搜索任务",
   "home.example.research": "调研今天 GitHub 热榜上值得关注的项目，写成一份报告",
   "home.example.fix": "运行仓库的测试，修复失败的用例并提交",
@@ -459,10 +460,10 @@ const en: Record<MessageKey, string> = {
   "auto.create": "Create",
   "auto.fromTask": "Run on a schedule…",
   "auto.badge": "From an automation",
-  "home.title": "What should Warren do?",
+  "home.title": "What can Warren do for you today?",
   "home.body":
-    "Say what needs doing and press Enter. It works in its own workspace in the background and only interrupts you when it needs you.",
-  "home.placeholder": "Describe the task…",
+    "Research, code, files: hand them over and Warren works through them in the background. It lets you know when there is a result, or a decision for you to make.",
+  "home.placeholder": "Hand over a task…",
   "home.shortcuts": "↩ send · ⇧↩ new line · ⌘N back here · ⌘K search tasks",
   "home.example.research":
     "Research the notable projects on today's GitHub trending and write a report",
