@@ -1,6 +1,6 @@
 # 001 事件日志
 
-本文定义任务事件日志的格式 v1。它是 Warren 里最难修改的部分，所以先于其他代码设计。实现见 `packages/protocol` 和 `packages/core/src/task-state.ts`。前置阅读：[000 理念](000-philosophy.md)。
+本文定义任务事件日志的格式 v1。它是 Warren 里最难修改的部分，所以最先设计、改动最谨慎。实现见 `packages/protocol` 和 `packages/core/src/task-state.ts`。前置阅读：[000 理念](000-philosophy.md)。
 
 ## 信封
 
@@ -19,7 +19,7 @@
 
 | 类型 | 含义 |
 |---|---|
-| `task.created` | 标题、指令、Grant、来源。一定是 `seq = 0` |
+| `task.created` | 标题、指令、Grant、来源，以及可选的模型角色、跟随的对话、保存位置。一定是 `seq = 0` |
 | `input.received` | 来自人或连接器的一条消息，会唤醒空闲的任务 |
 | `model.responded` | 一次模型响应：输出条目、停止原因、用量、耗时、所用模型 |
 | `model.failed` | 一次模型调用失败，已归一为 `retryable`、`fatal`、`context_overflow` |
@@ -46,7 +46,7 @@
 
 | 条目 | 说明 |
 |---|---|
-| `message` | `user` 或 `assistant` 的消息，内容是 `ContentPart` 数组（目前只有文本，图片等以后作为新成员加入） |
+| `message` | `user` 或 `assistant` 的消息，内容是 `ContentPart` 数组。新的内容类型（如图片）作为新成员加入，不改动已有格式 |
 | `reasoning` | 提供方私有的推理状态（如 OpenAI 加密推理、Anthropic thinking 签名）。只有 `provider` 字段指明的适配器能解释 `data`，换模型时其他适配器会丢掉它 |
 | `tool_call` | 工具调用；`arguments` 保存模型产出的原始 JSON 文本，可能不合法，执行时再校验 |
 | `tool_result` | 工具结果，由 `tool.finished` 生成 |
@@ -63,7 +63,7 @@
 ## 版本和演进
 
 - **事件写入后永不修改。** 某个类型的 `data` 需要变化时，把它的版本加一，并在 `upcast.ts` 中加一个把 n 升到 n+1 的函数。读取时依次升级，调用方只会看到当前格式。
-- **新增事件类型不需要升版本。** 旧版本程序读到不认识的类型会报错，而不是静默忽略。
+- **新增事件类型、给 `data` 加可选字段、给联合类型加新成员，都不需要升版本：** 旧事件仍然合法。旧版本程序读到不认识的类型会报错，而不是静默忽略。
 - 读到比当前程序更新的版本时拒绝读取。
 
 ## 存储

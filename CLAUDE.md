@@ -16,8 +16,8 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 
 - `packages/protocol` — event format, conversation items, Grant, API contract (zod). Depends on nothing internal.
 - `packages/core` — fold, nextStep, the agent loop, port interfaces (`ports.ts`), test doubles (`@warren/core/testing`). Depends only on `protocol` and zod; no IO, no Bun APIs.
-- Adapters implement `core` interfaces: `packages/model` (OpenAI Responses, OpenAI-compatible Chat Completions; shared error rules in `errors.ts`, shared contract tests in `tests/contract.test.ts`), `packages/tools` (built-in tools). Connectors come in M5.
-- `evals/` — chaos harness; the crash scenario lives in `@warren/core/testing` (`push-scenario.ts`) and is shared with `packages/core/tests/simulation.test.ts`.
+- Adapters implement `core` interfaces: `packages/model` (OpenAI Responses, OpenAI-compatible Chat Completions, Anthropic; shared error rules in `errors.ts`, shared contract tests in `tests/contract.test.ts`), `packages/tools` (built-in tools, Seatbelt sandbox, privileged tools).
+- `evals/` — chaos harness and the SWE-bench subset; the crash scenario lives in `@warren/core/testing` (`push-scenario.ts`) and is shared with `packages/core/tests/simulation.test.ts`.
 - `apps/daemon` is the composition root (`startDaemon`) and the only process that writes the database. `apps/cli` talks to it over HTTP using `daemon.json`.
 - `apps/web` — React UI bundled by Bun's HTML import and served by the daemon at `/`. View logic lives in pure functions (`model.ts`, `i18n.ts`) with tests. Every UI string goes through `i18n.ts` (Chinese default, English); never hard-code interface text.
 - `packages/connectors` — sources of work (GitHub). Events from webhooks and reconcile polls share content-based `externalId`s; `Intake` dedupes, routes (`core/routing.ts`, pure) and applies in one SQLite transaction.

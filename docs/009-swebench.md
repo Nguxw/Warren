@@ -1,6 +1,6 @@
-# 009 SWE-bench 评测
+# 009 基准评测：SWE-bench
 
-本文说明怎样用 SWE-bench Verified 的一个子集衡量 Warren 解决真实代码问题的能力，以及一次评测的结果。前置阅读：[003 运行时](003-runtime.md)、[005 安全边界](005-security.md)、[008 上下文与指标](008-context-and-metrics.md)。
+本文说明怎样用 SWE-bench Verified 的一个子集衡量 Warren 解决真实代码问题的能力、如何复现，以及已有的结果。前置阅读：[003 运行时](003-runtime.md)、[005 安全边界](005-security.md)、[008 上下文与指标](008-context-and-metrics.md)。
 
 ## 评什么
 
@@ -19,7 +19,7 @@ SWE-bench Verified 有 500 个经人工确认的 GitHub issue，每个对应一�
 
 代码在 `evals/swebench/`。
 
-1. **抽样**（`sample.py`）：按 `instance_id` 排序后，用固定种子均匀抽取，可以复现。本次抽了 28 个，种子 `20261114`：前 3 个是试跑，后 25 个是正式评测。
+1. **抽样**（`sample.py`）：按 `instance_id` 排序后，用固定种子均匀抽取，可以复现。仓库里的 `instances.json` 是种子 `20261114` 抽出的 28 个实例：前 3 个用于试跑，后 25 个用于正式评测。
 2. **生成补丁**（`run.ts`）：
    - 在进程内启动一个独立的守护进程。它有自己的 home，密钥从用户的 `~/.warren/credentials.env` 读进环境变量，不落盘。
    - 每个实例只拉取基准提交（`--depth 1`），作为任务的源仓库。
@@ -41,11 +41,11 @@ bun evals/swebench/run.ts evals/swebench/instances.json 3 25 evals/swebench/runs
 bun evals/swebench/score.ts evals/swebench/runs/main 4     # 需要 Docker（colima），--keep 跳过清理
 ```
 
-需要 Docker。本次用的是 colima（vz + Rosetta，8 核、24 GB 内存）。评测结束后可以 `colima delete` 释放磁盘。
+需要 Docker（例如 colima）。评测结束后可以 `colima delete` 释放磁盘。
 
 ## 结果
 
-`gpt-6.1-terra`（main 角色），2026-11-14：
+`gpt-6.1-terra`（main 角色），2026-11-14，colima（vz + Rosetta，8 核、24 GB 内存）：
 
 | | 解决 | 比例 |
 |---|---|---|
@@ -85,14 +85,15 @@ bun evals/swebench/score.ts evals/swebench/runs/main 4     # 需要 Docker（col
 | `sphinx-8265` | 同类问题：元组默认值的渲染方式和测试期望的不同（33 行，是改动最大的一个） |
 | `scikit-learn-26194` | 阈值的修法和测试期望的不同（`roc_curve` 的 `thresholds` 上限） |
 
-可以改进的方向：
+改进方向：
 
 - 让任务在提交前跑一遍仓库里相关模块的已有测试，能挡住 `django-16950` 这类回归；
 - 对需要猜"上游会怎么修"的问题，可以用 `hard` 角色复核。
 
-## 评测中发现并修正的问题
+## 运行要点
 
-- **uv 下载的 Python 写不进去。** uv 默认把 Python 装到 `~/.local/share`，这个目录在沙箱外，写入被拒。现在工具环境把 `XDG_DATA_HOME` 指到任务的 scratch 目录（`packages/tools/src/common.ts`）。
-- **仓库克隆不稳定。** 完整克隆大仓库（matplotlib）时连接常被中断。改成只拉取基准提交并重试；单个实例失败时记为 "setup failed"，不影响其他实例。
-- **镜像架构不对。** harness 会按宿主架构拉 arm64 镜像，但官方镜像只有 x86_64，所以要先指定平台拉取。
-- **镜像下载慢。** 国内访问 Docker Hub 时单个连接只有约 1 MB/s。解决办法是提高 Docker 的并发下载数，并在评测当前批时并行下载下一批。
+- **镜像架构：** 官方镜像只有 x86_64。harness 默认按宿主架构拉取，在 Apple Silicon 上会拉 arm64 并失败，所以 `score.ts` 先用 `--platform linux/amd64` 拉取。
+- **镜像下载：** 网络到 Docker Hub 较慢时，提高 Docker 的并发下载数（`max-concurrent-downloads`）；`score.ts` 已经在评测当前批时并行下载下一批。
+- **仓库获取：** 大仓库（如 matplotlib）完整克隆容易中断，`run.ts` 只拉取基准提交（`--depth 1`）并重试；单个实例失败记为 `setup failed`，不影响其他实例。
+- **Python 环境：** 任务用 uv 在 `$TMPDIR` 建虚拟环境。沙箱把 `XDG_DATA_HOME` 指向任务的 scratch，uv 下载的 Python 解释器因此也留在沙箱里。
+- **中断续跑：** `run.ts` 按标题（即 `instance_id`）找回已经创建的任务，中途退出后再运行会接着做。

@@ -46,7 +46,7 @@
 
 ## 模型适配器契约
 
-`packages/model/tests/contract.test.ts`：同一套测试分别跑在 OpenAI Responses 和 OpenAI 兼容（Chat Completions）两个适配器上。每个适配器各连一个本地的假 HTTP 服务，服务按对应 API 的格式返回数据。检查的行为：
+`packages/model/tests/contract.test.ts`：同一套测试分别跑在 OpenAI Responses、OpenAI 兼容（Chat Completions）和 Anthropic 三个适配器上。每个适配器各连一个本地的假 HTTP 服务，服务按对应 API 的格式返回数据。检查的行为：
 
 - 用各自的协议格式发出系统指令和完整对话，包括工具结果。
 - 工具调用原样返回参数字符串，并正确读出用量（含缓存命中）。
@@ -55,4 +55,16 @@
 
 循环依赖这些行为在所有适配器上一致。新增适配器时，只需要在 `fixtures` 里加一项。
 
-真实接口测试（`WARREN_LIVE=1`）对两个适配器各做一次完整的工具调用来回：Responses 适配器包括加密推理内容的回传；兼容适配器直接连 OpenAI 官方的 Chat Completions 接口。
+真实接口测试（`WARREN_LIVE=1`）对 OpenAI 的两个适配器各做一次完整的工具调用来回：Responses 适配器包括加密推理内容的回传；兼容适配器直接连 OpenAI 官方的 Chat Completions 接口。
+
+## 其他测试
+
+| 范围 | 位置 | 内容 |
+|---|---|---|
+| 沙箱和特权工具 | `packages/tools/tests/` | 见 [005](005-security.md) 的"验证" |
+| 守护进程 | `apps/daemon/tests/` | API 端到端：任务、产物与保存、设置与密钥、删除、自动化（模拟时钟）、GitHub（假 API 与签名 webhook） |
+| 纯逻辑 | `packages/core/tests/` | 路由、上下文压缩切点、时间表、系统提示词 |
+| 界面逻辑 | `apps/web/tests/` | 时间线投影、文件分组、输入法回车判断、双语文案 |
+| 基准评测 | `evals/swebench/` | 见 [009](009-swebench.md) |
+
+`bun run check`（类型检查、lint、全部测试）在 CI 的每次推送和 PR 上运行。
