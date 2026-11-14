@@ -22,6 +22,7 @@ import {
   PullRequest,
   Reveal,
   Stop,
+  Trash,
 } from "../icons.tsx";
 import {
   argsPreview,
@@ -40,7 +41,13 @@ import { Changes } from "./Changes.tsx";
 import { Files, Location } from "./Files.tsx";
 import { StatusIcon } from "./Sidebar.tsx";
 
-export function TaskView({ id }: { id: string }) {
+export function TaskView({
+  id,
+  onDelete,
+}: {
+  id: string;
+  onDelete(task: { id: string; title: string; status: string }): void;
+}) {
   const { t } = useI18n();
   const task = useQuery({ queryKey: ["task", id], queryFn: () => api.task(id) });
   const events = useQuery({ queryKey: ["events", id], queryFn: () => api.events(id) });
@@ -79,6 +86,7 @@ export function TaskView({ id }: { id: string }) {
       <TaskHeader
         task={shown}
         model={lastModel(visible)}
+        onDelete={() => onDelete(task.data)}
         live={!replaying}
         replaying={replaying}
         onReplay={() => {
@@ -172,6 +180,7 @@ function TaskHeader(props: {
   task: Task;
   /** The model that answered last. */
   model: string | undefined;
+  onDelete(): void;
   live: boolean;
   replaying: boolean;
   onReplay(): void;
@@ -199,6 +208,16 @@ function TaskHeader(props: {
           >
             <History />
           </button>
+          {!props.replaying && (
+            <button
+              type="button"
+              className="icon-button danger"
+              title={t("delete.action")}
+              onClick={props.onDelete}
+            >
+              <Trash />
+            </button>
+          )}
           {props.live && task.status !== "ended" && (
             <>
               {task.status === "paused" ? (

@@ -121,6 +121,18 @@ export class TaskStore {
     return state;
   }
 
+  /**
+   * Removes a task and its whole log. Events are never edited, but a person may drop a task
+   * entirely; nothing of it stays. The caller makes sure no loop is still writing to it.
+   */
+  delete(taskId: string): void {
+    this.db.transaction(() => {
+      this.db.query("DELETE FROM events WHERE task_id = ?").run(taskId);
+      this.db.query("DELETE FROM tasks WHERE id = ?").run(taskId);
+    })();
+    this.states.delete(taskId);
+  }
+
   /** Resolves a full id, or a unique suffix of one as the CLI shows it. */
   resolveId(idOrSuffix: string): string | undefined {
     const exact = this.db.query<{ id: string }, [string]>("SELECT id FROM tasks WHERE id = ?");

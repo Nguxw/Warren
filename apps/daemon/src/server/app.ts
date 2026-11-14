@@ -54,6 +54,8 @@ export interface AppDeps {
   folders: FolderRules;
   /** Asks the person to pick a folder with the system's dialog; undefined if they cancel. */
   pickFolder?(prompt: string): Promise<string | undefined>;
+  /** Stops a task if it is running and removes its log and its files. */
+  deleteTask(taskId: string): Promise<void>;
   /** Shows a file or folder in the system file manager without opening it; absent off macOS. */
   reveal?(path: string): Promise<void>;
   sandbox: string;
@@ -395,6 +397,21 @@ export function createApp(deps: AppDeps) {
     const next = store.append(state.id, [{ type: "task.resumed", data: {} }]);
     scheduler.wake(state.id);
     return c.json({ task: view(next) });
+  });
+
+  /**
+   * Deletes a task: its log, its workspace and its scratch files. Files it saved elsewhere and
+   * branches it published stay. A running task is stopped first.
+   */
+  app.delete("/tasks/:id", async (c) => {
+    const state = load(c);
+    if (!state.ended) {
+      store.append(state.id, [
+        { type: "task.ended", data: { outcome: "cancelled", summary: "Deleted by user" } },
+      ]);
+    }
+    await deps.deleteTask(state.id);
+    return c.json({ deleted: state.id });
   });
 
   app.post("/tasks/:id/cancel", (c) => {

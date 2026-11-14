@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tan
 import type { TaskEvent } from "@warren/protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, subscribe, Unauthorized } from "./api.ts";
+import { DeleteTask } from "./components/DeleteTask.tsx";
 import { Home } from "./components/Home.tsx";
 import { SettingsView } from "./components/SettingsView.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
@@ -34,6 +35,7 @@ function Shell() {
     new URLSearchParams(window.location.search).get("task"),
   );
   const [page, setPage] = useState<"tasks" | "triggers" | "settings">("tasks");
+  const [deleting, setDeleting] = useState<{ id: string; title: string; status: string }>();
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -90,6 +92,7 @@ function Shell() {
         onQuery={setQuery}
         onSelect={select}
         onNew={startNew}
+        onDelete={setDeleting}
         page={page}
         onTriggers={() => open("triggers")}
         onSettings={() => open("settings")}
@@ -100,11 +103,21 @@ function Shell() {
         ) : page === "triggers" ? (
           <TriggersView onOpenTask={(id) => select(id)} />
         ) : selected ? (
-          <TaskView key={selected} id={selected} />
+          <TaskView key={selected} id={selected} onDelete={setDeleting} />
         ) : (
           <Home tasks={tasks.data ?? []} inputRef={composerRef} onCreated={(id) => select(id)} />
         )}
       </main>
+      {deleting && (
+        <DeleteTask
+          task={deleting}
+          onClose={() => setDeleting(undefined)}
+          onDeleted={(id) => {
+            setDeleting(undefined);
+            if (id === selected) select(null);
+          }}
+        />
+      )}
     </div>
   );
 }

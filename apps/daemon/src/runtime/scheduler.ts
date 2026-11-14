@@ -31,6 +31,8 @@ export class Scheduler {
   >();
   private readonly again = new Set<string>();
   private readonly queue: string[] = [];
+  /** Tasks being deleted: never started again. */
+  private readonly released = new Set<string>();
   private stopped = false;
 
   constructor(
@@ -48,7 +50,7 @@ export class Scheduler {
   }
 
   wake(taskId: string): void {
-    if (this.stopped) return;
+    if (this.stopped || this.released.has(taskId)) return;
     if (this.running.has(taskId)) {
       this.again.add(taskId);
       return;
@@ -69,6 +71,22 @@ export class Scheduler {
       if (next === undefined) break;
       this.start(next);
     }
+  }
+
+  /**
+   * Stops a task for good, before it is deleted: drops it from the queue, interrupts its step and
+   * waits until its loop has returned, so nothing writes to it afterwards.
+   */
+  async release(taskId: string): Promise<void> {
+    this.released.add(taskId);
+    const queued = this.queue.indexOf(taskId);
+    if (queued >= 0) this.queue.splice(queued, 1);
+    this.again.delete(taskId);
+    const running = this.running.get(taskId);
+    if (!running) return;
+    running.controller.abort();
+    await running.done;
+    this.again.delete(taskId);
   }
 
   /** Stops the step a task is taking now, for pause and cancel. */
@@ -107,7 +125,7 @@ export class Scheduler {
       // A wake that arrived while an interrupted loop was winding down still counts.
       const wokenMeanwhile = this.again.delete(taskId);
       if (this.stopped) return;
-      const next = wokenMeanwhile ? taskId : this.queue.shift();
+      const next = wokenMeanwhile && !this.released.has(taskId) ? taskId : this.queue.shift();
       if (next !== undefined) this.start(next);
     });
     this.running.set(taskId, { controller, done });

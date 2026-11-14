@@ -202,6 +202,13 @@ export function Reveal(props: IconProps) {
     </Svg>
   );
 }
+export function Trash(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4.5 7h15M9.5 7V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v2M6.5 7l.8 11.2a2 2 0 0 0 2 1.8h5.4a2 2 0 0 0 2-1.8L17.5 7M10 11v5M14 11v5" />
+    </Svg>
+  );
+}
 export function Download(props: IconProps) {
   return (
     <Svg {...props}>

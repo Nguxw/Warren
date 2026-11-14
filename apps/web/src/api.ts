@@ -135,6 +135,7 @@ export const api = {
     }),
   control: (id: string, action: "pause" | "resume" | "cancel") =>
     request<{ task: TaskView }>("POST", `/tasks/${id}/${action}`),
+  remove: (id: string) => request<{ deleted: string }>("DELETE", `/tasks/${id}`),
   files: (id: string) => request<ArtifactList>("GET", `/tasks/${id}/files`),
   file: (id: string, path: string) =>
     request<{ file: ArtifactContent }>(

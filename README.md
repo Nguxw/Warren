@@ -68,6 +68,7 @@ warren run --repo ~/code/app "修复 xxx 测试，提交并发布分支"
 warren run --network --repo . "…"     # 需要安装依赖等联网操作时
 warren run --repo ~/Documents/资料 --output ~/Desktop "整理成一份摘要"   # 普通文件夹会复制一份，原文件夹不动
 warren save <id> [<目录>]              # 把任务的产物保存到目录（默认 --output）
+warren delete <id> --yes              # 删除任务：对话记录和工作区（运行中的会先停止）
 warren tasks                          # 看还在进行的任务
 warren follow <id>                    # 跟随一个任务
 warren answer <id> "<回答>"           # 回答任务的问题

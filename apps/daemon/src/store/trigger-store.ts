@@ -43,6 +43,14 @@ export class TriggerStore {
     return Number(result.lastInsertRowid);
   }
 
+  /**
+   * Unlinks a deleted task. The event stays: it is still the dedupe record that keeps the same
+   * happening from starting work twice.
+   */
+  forgetTask(taskId: string): void {
+    this.db.query("UPDATE trigger_events SET task_id = NULL WHERE task_id = ?").run(taskId);
+  }
+
   list(limit = 100): TriggerRecord[] {
     return this.db
       .query<Row, [number]>("SELECT * FROM trigger_events ORDER BY id DESC LIMIT ?")

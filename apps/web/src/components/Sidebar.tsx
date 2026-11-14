@@ -14,6 +14,7 @@ import {
   Plus,
   Search,
   Shield,
+  Trash,
 } from "../icons.tsx";
 import { displayTitle, groupTasks } from "../model.ts";
 
@@ -36,6 +37,7 @@ export function Sidebar(props: {
   onQuery(query: string): void;
   onSelect(id: string): void;
   onNew(): void;
+  onDelete(task: TaskSummary): void;
   onTriggers(): void;
   onSettings(): void;
   page: "tasks" | "triggers" | "settings";
@@ -95,7 +97,7 @@ export function Sidebar(props: {
               </h3>
               <ul>
                 {groups[key].slice(0, key === "ended" ? 40 : undefined).map((task) => (
-                  <li key={task.id}>
+                  <li key={task.id} className="task-item">
                     <button
                       type="button"
                       className={`task-row ${props.selected === task.id ? "selected" : ""}`}
@@ -119,6 +121,15 @@ export function Sidebar(props: {
                           <span>{formatAgo(t, now - task.updatedAt)}</span>
                         </span>
                       </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="row-delete"
+                      title={t("delete.action")}
+                      aria-label={t("delete.action")}
+                      onClick={() => props.onDelete(task)}
+                    >
+                      <Trash size={14} />
                     </button>
                   </li>
                 ))}

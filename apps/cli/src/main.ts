@@ -45,6 +45,7 @@ Usage:
       --network                        Let the task's commands reach the network
       --detach                         Do not follow the task
   warren save <id> [<dir>]           Save a task's files to <dir> (default: its --output)
+  warren delete <id> --yes           Delete a task: its log and workspace (stops it if running)
   warren tasks [--all]               List tasks (default: not ended)
   warren show <id>                   Print a task's whole history
   warren follow <id>                 Follow a task until it needs you or stops
@@ -61,6 +62,7 @@ Ids can be shortened to the 8 characters \`warren tasks\` shows.`;
 
 interface TaskView {
   id: string;
+  title: string;
   status: TaskSummary["status"];
   lastSeq: number;
   attention: { attentionId: string; kind: "question" | "approval"; prompt: string }[];
@@ -99,6 +101,8 @@ async function main(argv: string[]): Promise<number> {
       return control(command, rest);
     case "save":
       return save(rest);
+    case "delete":
+      return remove(rest);
     case "doctor":
       return doctor();
     case "triggers":
@@ -288,6 +292,26 @@ async function save(args: string[]): Promise<number> {
     dir ? { dir: resolve(dir) } : {},
   );
   console.log(`saved ${result.files} files to ${result.destination}`);
+  return 0;
+}
+
+async function remove(args: string[]): Promise<number> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: { yes: { type: "boolean" } },
+  });
+  const [id] = positionals;
+  if (!id || positionals.length > 1) throw new CliError("usage: warren delete <id> --yes");
+  const api = client();
+  const { task } = await api.request<{ task: TaskView }>("GET", `/tasks/${id}`);
+  if (!values.yes) {
+    console.log(`would delete ${shortId(task.id)} "${task.title}" (${task.status})`);
+    console.log("its log and workspace go for good; add --yes to delete");
+    return 1;
+  }
+  await api.request("DELETE", `/tasks/${task.id}`);
+  console.log(`deleted ${shortId(task.id)}`);
   return 0;
 }
 

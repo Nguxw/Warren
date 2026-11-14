@@ -158,6 +158,15 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       onConcurrency: (n) => scheduler.setConcurrency(n),
     }),
     workspaceOf: (id) => workspaces.pathOf(id),
+    deleteTask: async (id) => {
+      await scheduler.release(id);
+      db.transaction(() => {
+        triggers.forgetTask(id);
+        store.delete(id);
+      })();
+      rmSync(workspaces.dirOf(id), { recursive: true, force: true });
+      logger.info("task deleted", { taskId: id });
+    },
     baselineOf: (id) => workspaces.baselineOf(id),
     folders: { warrenHome: paths.home },
     ...(process.platform === "darwin" && { pickFolder: chooseFolder }),

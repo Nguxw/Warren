@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ModelClient } from "@warren/core";
 import { reply, ScriptedModel, toolCall } from "@warren/core/testing";
 import {
   checkFolder,
@@ -38,8 +39,9 @@ afterEach(async () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-async function start() {
-  const model = new ScriptedModel([reply(toolCall("complete_task", { summary: "done" }))]);
+async function start(
+  model: ModelClient = new ScriptedModel([reply(toolCall("complete_task", { summary: "done" }))]),
+) {
   daemon = await startDaemon({
     home,
     port: 0,
@@ -152,5 +154,50 @@ describe("checkFolder", () => {
     mkdirSync(join(out, "a b"), { recursive: true });
     expect(exportFolder(out, "a/b", "x")).toBe(join(out, "a b 2"));
     expect(exportFolder(out, "..", "warren-1")).toBe(join(out, "warren-1"));
+  });
+});
+
+describe("deleting a task", () => {
+  test("removes its log and files; what it saved elsewhere stays", async () => {
+    const call = await start();
+    const id: string = (await call("POST", "/tasks", { instruction: "Research" })).body.task.id;
+    await daemon?.scheduler.idle();
+    writeFileSync(join(home, "tasks", id, "workspace", "report.md"), "# R\n");
+    const out = join(root, "out");
+    mkdirSync(out);
+    const saved = (await call("POST", `/tasks/${id}/export`, { dir: out })).body.destination;
+
+    expect((await call("DELETE", `/tasks/${id}`)).body).toEqual({ deleted: id });
+    expect((await call("GET", `/tasks/${id}`)).status).toBe(404);
+    expect((await call("GET", "/tasks")).body.tasks).toEqual([]);
+    expect(daemon?.store.events(id)).toEqual([]);
+    expect(existsSync(join(home, "tasks", id))).toBe(false);
+    expect(readFileSync(join(saved, "report.md"), "utf8")).toBe("# R\n");
+    expect((await call("DELETE", `/tasks/${id}`)).status).toBe(404);
+  });
+
+  test("a running task is stopped first and never written to again", async () => {
+    let calls = 0;
+    // A model that thinks until it is interrupted.
+    const model: ModelClient = {
+      provider: "slow",
+      complete: (request) => {
+        calls += 1;
+        return new Promise((_, reject) => {
+          request.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        });
+      },
+    };
+    const call = await start(model);
+    const id: string = (await call("POST", "/tasks", { instruction: "Think" })).body.task.id;
+    while (calls === 0) await Bun.sleep(5);
+    expect(daemon?.scheduler.isRunning(id)).toBe(true);
+
+    expect((await call("DELETE", `/tasks/${id}`)).status).toBe(200);
+    expect(daemon?.scheduler.isRunning(id)).toBe(false);
+    expect(daemon?.store.get(id)).toBeUndefined();
+    await daemon?.scheduler.idle();
+    expect(daemon?.store.events(id)).toEqual([]);
+    expect(calls).toBe(1);
   });
 });

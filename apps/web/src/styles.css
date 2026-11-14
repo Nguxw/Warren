@@ -1562,6 +1562,109 @@ a.chip:hover {
   font: 13px var(--mono);
 }
 
+/* ------------------------------------------------------------ confirm */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(20, 18, 14, 0.32);
+  backdrop-filter: blur(3px);
+  cursor: default;
+}
+.confirm {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(420px, 100%);
+  padding: 26px 26px 20px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  animation: rise 0.14s ease-out;
+}
+.confirm-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.confirm h2 {
+  margin: 6px 0 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+.confirm-name {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.confirm .muted {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.confirm footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.button.danger-solid {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+.button.danger-solid:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.task-item {
+  position: relative;
+}
+/* Room for the delete button, so it never covers the title. */
+.task-item .row-body {
+  padding-right: 22px;
+}
+.row-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.task-item:hover .row-delete,
+.row-delete:focus-visible {
+  opacity: 1;
+}
+.row-delete:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 /* ------------------------------------------------------------ start page */
 
 .home {
