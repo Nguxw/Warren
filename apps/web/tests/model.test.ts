@@ -6,7 +6,15 @@ import {
   type TaskSummary,
   text,
 } from "@warren/protocol";
-import { argsPreview, groupTasks, timeline } from "../src/model.ts";
+import {
+  argsPreview,
+  formatBytes,
+  groupFiles,
+  groupTasks,
+  previewKind,
+  primaryArtifact,
+  timeline,
+} from "../src/model.ts";
 
 function log(...drafts: EventDraft[]): TaskEvent[] {
   return drafts.map(
@@ -161,4 +169,67 @@ test("argsPreview shows the most telling argument", () => {
   expect(argsPreview('{"command":"bun test --watch"}')).toBe("bun test --watch");
   expect(argsPreview('{"path":"src/a.ts","offset":3}')).toBe("src/a.ts");
   expect(argsPreview("{broken")).toBe("{broken");
+});
+
+describe("retry notices", () => {
+  test("a retry the next call got past stops being a warning", () => {
+    const failed = (message: string): EventDraft => ({
+      type: "model.failed",
+      data: { model, kind: "retryable", message },
+    });
+    const responded: EventDraft = {
+      type: "model.responded",
+      data: {
+        model,
+        usage,
+        latencyMs: 1,
+        stopReason: "end_turn",
+        items: [{ type: "message", role: "assistant", content: text("ok") }],
+      },
+    };
+    const notices = (events: TaskEvent[]) =>
+      timeline(events)
+        .filter((e) => e.kind === "notice")
+        .map((e) => (e.kind === "notice" ? [e.tone, e.notice.type] : []));
+
+    expect(notices(log(failed("reset")))).toEqual([["warn", "retryable"]]);
+    expect(notices(log(failed("reset"), responded, failed("again")))).toEqual([
+      ["info", "recovered"],
+      ["warn", "retryable"],
+    ]);
+  });
+});
+
+describe("artifacts", () => {
+  test("the file to open first is a top-level document, then the newest", () => {
+    const files = (...paths: string[]) => paths.map((path) => ({ path }));
+    expect(primaryArtifact(files("data/raw.json", "report.md", "notes.txt"))?.path).toBe(
+      "report.md",
+    );
+    expect(primaryArtifact(files("evidence/day.md", "summary.md"))?.path).toBe("summary.md");
+    expect(primaryArtifact(files("b.png", "a.png"))?.path).toBe("b.png");
+    expect(primaryArtifact([])).toBeUndefined();
+  });
+
+  test("top-level files come first, the main one leading; folders are grouped", () => {
+    const groups = groupFiles(
+      ["sources/b.json", "notes.txt", "sources/a.json", "report.md", "data/x/y.csv"].map(
+        (path) => ({ path }),
+      ),
+    );
+    expect(groups.top.map((f) => f.path)).toEqual(["report.md", "notes.txt"]);
+    expect(groups.folders.map((g) => [g.name, g.files.map((f) => f.path)])).toEqual([
+      ["data", ["data/x/y.csv"]],
+      ["sources", ["sources/a.json", "sources/b.json"]],
+    ]);
+  });
+
+  test("previews and sizes", () => {
+    expect(previewKind("Report.MD")).toBe("markdown");
+    expect(previewKind("page.html")).toBe("html");
+    expect(previewKind("data.json")).toBe("text");
+    expect(formatBytes(812)).toBe("812 B");
+    expect(formatBytes(14_200)).toBe("14 KB");
+    expect(formatBytes(3_210_000)).toBe("3.2 MB");
+  });
 });

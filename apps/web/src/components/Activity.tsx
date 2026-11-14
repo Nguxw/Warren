@@ -190,6 +190,7 @@ function EntryView({ entry }: { entry: KeyedEntry }): ReactNode {
 export function noticeText(t: Translate, notice: Notice): string {
   switch (notice.type) {
     case "retryable":
+    case "recovered":
     case "fatal":
     case "context_overflow":
       return t(`notice.${notice.type}`, { message: notice.message });

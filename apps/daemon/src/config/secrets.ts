@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 
 /**
  * Secrets Warren reads. Each has a Warren-specific name (`WARREN_…_API_KEY` or `WARREN_…_TOKEN`)
@@ -48,4 +48,34 @@ export function parseEnvFile(text: string): Record<string, string> {
 export function maskSecret(value: string): string {
   if (value.length < 16) return "****";
   return `${value.slice(0, 7)}…${value.slice(-4)}`;
+}
+
+/** A secret name or value that cannot be stored. */
+export class InvalidSecretError extends Error {}
+
+/** What a secret value may contain: printable characters without spaces or quotes. */
+const SECRET_VALUE = /^[!#-&(-~]+$/;
+
+/**
+ * Sets (or with `undefined` removes) one secret in the credentials file, keeping every other
+ * line, comments included. The file is replaced atomically and stays mode 0600.
+ */
+export function writeSecret(file: string, name: string, value: string | undefined): void {
+  if (!SECRET_NAME.test(name)) {
+    throw new InvalidSecretError(
+      `${name}: secret names look like WARREN_<NAME>_API_KEY or WARREN_<NAME>_TOKEN`,
+    );
+  }
+  if (value !== undefined && !SECRET_VALUE.test(value)) {
+    throw new InvalidSecretError("a secret value must be one word without spaces or quotes");
+  }
+  const lines = existsSync(file) ? readFileSync(file, "utf8").split(/\r?\n/) : [];
+  const assigns = (line: string) => new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=`).test(line);
+  const kept = lines.filter((line) => !assigns(line));
+  while (kept.length > 0 && kept.at(-1) === "") kept.pop();
+  if (value !== undefined) kept.push(`${name}=${value}`);
+  const temp = `${file}.tmp`;
+  writeFileSync(temp, `${kept.join("\n")}\n`, { mode: 0o600 });
+  chmodSync(temp, 0o600);
+  renameSync(temp, file);
 }

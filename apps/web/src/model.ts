@@ -42,6 +42,8 @@ export type Entry =
 /** What a notice says, as data; the interface words it in the reader's language. */
 export type Notice =
   | { type: "retryable" | "fatal" | "context_overflow"; message: string }
+  /** A retryable failure the next attempt got past. */
+  | { type: "recovered"; message: string }
   | { type: "paused"; reason: string }
   | { type: "resumed" }
   | { type: "compacted"; replaces: number }
@@ -57,6 +59,8 @@ export function timeline(events: readonly TaskEvent[]): KeyedEntry[] {
   const entries: Entry[] = [];
   const tools = new Map<string, Extract<Entry, { kind: "tool" }>>();
   const attention = new Map<string, Extract<Entry, { kind: "attention" }>>();
+  // Retryable failures not yet followed by a response; they stop being warnings once one comes.
+  let retrying: Extract<Entry, { kind: "notice" }>[] = [];
 
   for (const event of events) {
     const { seq, at } = event;
@@ -74,6 +78,13 @@ export function timeline(events: readonly TaskEvent[]): KeyedEntry[] {
         });
         break;
       case "model.responded":
+        for (const entry of retrying) {
+          if (entry.notice.type === "retryable") {
+            entry.tone = "info";
+            entry.notice = { type: "recovered", message: entry.notice.message };
+          }
+        }
+        retrying = [];
         for (const item of event.data.items) {
           if (item.type === "message") {
             entries.push({ kind: "assistant", seq, at, text: joinText(item.content) });
@@ -94,15 +105,18 @@ export function timeline(events: readonly TaskEvent[]): KeyedEntry[] {
           }
         }
         break;
-      case "model.failed":
-        entries.push({
-          kind: "notice",
+      case "model.failed": {
+        const entry = {
+          kind: "notice" as const,
           seq,
           at,
-          tone: event.data.kind === "retryable" ? "warn" : "error",
+          tone: event.data.kind === "retryable" ? ("warn" as const) : ("error" as const),
           notice: { type: event.data.kind, message: event.data.message },
-        });
+        };
+        entries.push(entry);
+        if (event.data.kind === "retryable") retrying.push(entry);
         break;
+      }
       case "tool.started": {
         const tool = tools.get(event.data.callId);
         if (tool) tool.status = "running";
@@ -423,4 +437,71 @@ export function durationParts(ms: number): { h: number; m: number; s: number } {
 /** Titles from before repositories were shown separately began with "<repo>: "; drop that. */
 export function displayTitle(title: string, repo: string | undefined): string {
   return repo && title.startsWith(`${repo}: `) ? title.slice(repo.length + 2) : title;
+}
+
+/** A file size for people: 812 B, 14 KB, 3.2 MB. */
+export function formatBytes(n: number): string {
+  if (n < 1000) return `${n} B`;
+  if (n < 1_000_000) return `${Math.round(n / 1000)} KB`;
+  return `${(n / 1_000_000).toFixed(1)} MB`;
+}
+
+export type PreviewKind = "markdown" | "html" | "text";
+
+/** How a text file is best shown. HTML is shown as source: model-written pages never run here. */
+export function previewKind(path: string): PreviewKind {
+  const ext = path.toLowerCase().split(".").at(-1) ?? "";
+  if (ext === "md" || ext === "markdown") return "markdown";
+  if (ext === "html" || ext === "htm") return "html";
+  return "text";
+}
+
+const REPORT_EXTENSIONS = ["md", "markdown", "html", "htm", "pdf", "txt", "csv", "json"];
+
+/**
+ * The file a person most likely wants to open first: a document at the top of the workspace,
+ * preferring reports over data, then the newest. Files are expected newest first.
+ */
+export function primaryArtifact<T extends { path: string }>(files: readonly T[]): T | undefined {
+  const rank = (path: string) => {
+    const ext = path.toLowerCase().split(".").at(-1) ?? "";
+    const kind = REPORT_EXTENSIONS.indexOf(ext);
+    const depth = path.split("/").length - 1;
+    return (kind === -1 ? 100 : kind) + depth * 10;
+  };
+  let best: T | undefined;
+  for (const file of files) if (!best || rank(file.path) < rank(best.path)) best = file;
+  return best;
+}
+
+export interface FileGroups<T extends { path: string }> {
+  /** Files at the top of the workspace, the likely deliverables, the main one first. */
+  top: T[];
+  /** Everything else by top-level folder: sources, data, caches. */
+  folders: { name: string; files: T[] }[];
+}
+
+/** Groups a workspace's files for listing, so supporting material does not bury the result. */
+export function groupFiles<T extends { path: string }>(files: readonly T[]): FileGroups<T> {
+  const main = primaryArtifact(files);
+  const top: T[] = [];
+  const folders = new Map<string, T[]>();
+  for (const file of files) {
+    const slash = file.path.indexOf("/");
+    if (slash === -1) top.push(file);
+    else {
+      const name = file.path.slice(0, slash);
+      folders.set(name, [...(folders.get(name) ?? []), file]);
+    }
+  }
+  top.sort((a, b) => Number(b === main) - Number(a === main) || a.path.localeCompare(b.path));
+  return {
+    top,
+    folders: [...folders]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, list]) => ({
+        name,
+        files: list.sort((a, b) => a.path.localeCompare(b.path)),
+      })),
+  };
 }

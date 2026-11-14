@@ -61,6 +61,16 @@ export class Scheduler {
     this.start(taskId);
   }
 
+  /** Changes how many loops run at once; queued tasks start if there is now room. */
+  setConcurrency(concurrency: number): void {
+    this.options.concurrency = concurrency;
+    while (!this.stopped && this.running.size < concurrency) {
+      const next = this.queue.shift();
+      if (next === undefined) break;
+      this.start(next);
+    }
+  }
+
   /** Stops the step a task is taking now, for pause and cancel. */
   interrupt(taskId: string): void {
     this.running.get(taskId)?.controller.abort();

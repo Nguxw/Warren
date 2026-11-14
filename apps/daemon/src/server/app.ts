@@ -12,6 +12,14 @@ import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import type { Config } from "../config/config.ts";
+import { InvalidSecretError } from "../config/secrets.ts";
+import { SecretUpdate, type Settings, SettingsError, SettingsPatch } from "../config/settings.ts";
+import {
+  ArtifactPathError,
+  listArtifacts,
+  readArtifact,
+  resolveArtifact,
+} from "../runtime/artifacts.ts";
 import type { WorkspaceDiff } from "../runtime/diff.ts";
 import type { Scheduler } from "../runtime/scheduler.ts";
 import { computeStats } from "../runtime/stats.ts";
@@ -25,8 +33,13 @@ export interface AppDeps {
   notifier: Notifier;
   config: Config;
   token: string;
-  /** Which secrets the daemon has, by name; never their values. */
-  secrets: Record<string, boolean>;
+  /** Which secrets the configured models need and whether each is set; never their values. */
+  secrets(): Record<string, boolean>;
+  settings: Settings;
+  /** The directory a task works in; its files are what the task produced. */
+  workspaceOf(taskId: string): string;
+  /** Shows a file or folder in the system file manager without opening it; absent off macOS. */
+  reveal?(path: string): Promise<void>;
   sandbox: string;
   newId(): string;
   /** Interval for keep-alive comments on idle streams. */
@@ -67,11 +80,32 @@ export function createApp(deps: AppDeps) {
     if (error instanceof UnknownTaskError) return c.json({ error: error.message }, 404);
     if (error instanceof LogInvariantError) return c.json({ error: error.message }, 409);
     if (error instanceof z.ZodError) return c.json({ error: z.prettifyError(error) }, 400);
+    if (error instanceof SettingsError || error instanceof InvalidSecretError) {
+      return c.json({ error: error.message }, 400);
+    }
+    if (error instanceof ArtifactPathError) return c.json({ error: error.message }, 404);
     return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
   });
 
   app.get("/health", (c) =>
-    c.json({ ok: true, pid: process.pid, secrets: deps.secrets, sandbox: deps.sandbox }),
+    c.json({ ok: true, pid: process.pid, secrets: deps.secrets(), sandbox: deps.sandbox }),
+  );
+
+  app.get("/settings", (c) => c.json({ settings: deps.settings.view() }));
+
+  app.patch("/settings", async (c) => {
+    const patch = SettingsPatch.parse(await c.req.json());
+    return c.json({ settings: deps.settings.update(patch) });
+  });
+
+  /** Secrets are write-only: a value goes in, and only whether it is set comes back. */
+  app.put("/secrets/:name", async (c) => {
+    const { value } = SecretUpdate.parse(await c.req.json());
+    return c.json({ settings: deps.settings.setSecret(c.req.param("name"), value) });
+  });
+
+  app.delete("/secrets/:name", (c) =>
+    c.json({ settings: deps.settings.setSecret(c.req.param("name"), undefined) }),
   );
 
   app.post("/tasks", async (c) => {
@@ -152,6 +186,28 @@ export function createApp(deps: AppDeps) {
     const diff = await deps.diff?.(state);
     if (!diff) throw new HTTPException(404, { message: "this task has no repository workspace" });
     return c.json({ diff });
+  });
+
+  /** The files in the task's workspace: what it produced (or, with a repository, the clone). */
+  app.get("/tasks/:id/files", (c) => {
+    const root = deps.workspaceOf(load(c).id);
+    if (!existsSync(root)) return c.json({ root, files: [], truncated: false });
+    return c.json(listArtifacts(root));
+  });
+
+  app.get("/tasks/:id/files/content", async (c) => {
+    const root = deps.workspaceOf(load(c).id);
+    return c.json({ file: await readArtifact(root, c.req.query("path") ?? "") });
+  });
+
+  /** Reveals the workspace, or one of its files, in Finder. */
+  app.post("/tasks/:id/reveal", async (c) => {
+    const root = deps.workspaceOf(load(c).id);
+    const { path } = z.object({ path: z.string().optional() }).parse(await c.req.json());
+    if (!deps.reveal) throw new HTTPException(501, { message: "not supported on this system" });
+    if (!existsSync(root)) throw new HTTPException(404, { message: "no workspace yet" });
+    await deps.reveal(path ? resolveArtifact(root, path) : root);
+    return c.json({ ok: true });
   });
 
   app.get("/tasks/:id/events", (c) => {

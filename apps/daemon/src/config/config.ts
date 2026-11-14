@@ -164,10 +164,18 @@ export interface Config {
 export const DEFAULT_PORT = 7349;
 
 export function loadConfig(file: string | undefined): Config {
-  const raw = file && existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+  return parseConfig(readRawConfig(file), file ?? "config");
+}
+
+/** The file as written, before defaults; settings edits merge into it so nothing else is lost. */
+export function readRawConfig(file: string | undefined): Record<string, unknown> {
+  return file && existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+}
+
+export function parseConfig(raw: unknown, source: string): Config {
   const parsed = ConfigFile.safeParse(raw);
   if (!parsed.success) {
-    throw new Error(`invalid config ${file}:\n${z.prettifyError(parsed.error)}`);
+    throw new Error(`invalid config ${source}:\n${z.prettifyError(parsed.error)}`);
   }
   const { models, server, concurrency, sandbox, tasks, approvals, notifications, github } =
     parsed.data;

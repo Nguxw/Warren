@@ -170,6 +170,46 @@ export function Folder(props: IconProps) {
     </Svg>
   );
 }
+export function Gear(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+    </Svg>
+  );
+}
+export function Key(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="8" cy="15" r="4" />
+      <path d="m10.8 12.2 8.7-8.7M16.5 6.5l2.5 2.5M14 9l2 2" />
+    </Svg>
+  );
+}
+export function Copy(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="8.5" y="8.5" width="11" height="11" rx="2" />
+      <path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" />
+    </Svg>
+  );
+}
+export function Reveal(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M13.5 4.5h6v6M19.5 4.5 11 13" />
+      <path d="M18 14v3.5a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2H10" />
+    </Svg>
+  );
+}
+export function Package(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3.5 19.5 7.5v9L12 20.5 4.5 16.5v-9Z" />
+      <path d="M4.5 7.5 12 11.5l7.5-4M12 11.5v9" />
+    </Svg>
+  );
+}
 export function Globe(props: IconProps) {
   return (
     <Svg {...props}>

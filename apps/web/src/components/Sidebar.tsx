@@ -6,6 +6,7 @@ import {
   Alert,
   Check,
   Close,
+  Gear,
   Inbox,
   Logo,
   Message,
@@ -36,9 +37,10 @@ export function Sidebar(props: {
   onSelect(id: string): void;
   onNew(): void;
   onTriggers(): void;
-  showingTriggers: boolean;
+  onSettings(): void;
+  page: "tasks" | "triggers" | "settings";
 }) {
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
   const filtered = useMemo(() => {
     const query = props.query.trim().toLowerCase();
     if (!query || !props.tasks) return props.tasks ?? [];
@@ -129,26 +131,29 @@ export function Sidebar(props: {
       <footer className="sidebar-foot">
         <button
           type="button"
-          className={`foot-link ${props.showingTriggers ? "on" : ""}`}
+          className={`foot-link ${props.page === "settings" ? "on" : ""}`}
+          onClick={props.onSettings}
+          title={`${t("app.settings")} (⌘,)`}
+        >
+          <Gear size={14} />
+          {t("app.settings")}
+        </button>
+        <button
+          type="button"
+          className={`foot-link ${props.page === "triggers" ? "on" : ""}`}
           onClick={props.onTriggers}
         >
           <Inbox size={14} />
           {t("triggers.open")}
         </button>
         {props.sandbox && (
-          <span className={`sandbox ${props.sandbox === "none" ? "off" : ""}`}>
+          <span
+            className={`sandbox ${props.sandbox === "none" ? "off" : ""}`}
+            title={props.sandbox === "none" ? t("app.noSandbox") : t("app.sandbox")}
+          >
             <Shield size={14} />
-            {props.sandbox === "none" ? t("app.noSandbox") : t("app.sandbox")}
           </span>
         )}
-        <button
-          type="button"
-          className="lang"
-          title={t("app.switchLangTitle")}
-          onClick={() => setLang(lang === "zh" ? "en" : "zh")}
-        >
-          {t("app.switchLang")}
-        </button>
       </footer>
     </aside>
   );

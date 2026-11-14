@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TaskSummary } from "@warren/protocol";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.ts";
@@ -31,7 +31,10 @@ export function NewTaskDialog(props: {
   const [instruction, setInstruction] = useState("");
   const [repo, setRepo] = useState(recent[0]?.path ?? "");
   const [modelRole, setModelRole] = useState<(typeof ROLES)[number]>("main");
-  const [network, setNetwork] = useState(false);
+  // Until the person flips it, the switch shows the default from the settings.
+  const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings, staleTime: 30_000 });
+  const [networkChoice, setNetwork] = useState<boolean>();
+  const network = networkChoice ?? settings.data?.tasks.network ?? false;
   const input = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {

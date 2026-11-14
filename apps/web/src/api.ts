@@ -38,6 +38,60 @@ export interface WorkspaceDiff {
   truncated: boolean;
 }
 
+export interface ArtifactFile {
+  path: string;
+  size: number;
+  modifiedAt: number;
+}
+
+export interface ArtifactList {
+  root: string;
+  files: ArtifactFile[];
+  truncated: boolean;
+}
+
+export type ArtifactContent =
+  | { kind: "text"; path: string; size: number; text: string; truncated: boolean }
+  | { kind: "image"; path: string; size: number; mime: string; base64: string }
+  | { kind: "binary"; path: string; size: number };
+
+export type Provider = "openai-responses" | "anthropic" | "openai-compatible";
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
+export interface ModelSettings {
+  provider: Provider;
+  model: string;
+  baseUrl?: string;
+  reasoningEffort?: ReasoningEffort;
+  maxOutputTokens?: number;
+  contextWindow?: number;
+  price?: { input: number; cachedInput?: number; output: number };
+  apiKeySecret?: string;
+}
+
+export interface SecretInfo {
+  name: string;
+  set: boolean;
+  masked?: string;
+  fromEnv: boolean;
+  usedBy: string[];
+}
+
+export interface Settings {
+  models: Record<string, ModelSettings>;
+  concurrency: number;
+  notifications: boolean;
+  tasks: { network: boolean };
+  approvals: Record<string, "required" | "auto">;
+  secrets: SecretInfo[];
+  sandbox: string;
+  paths: { home: string; config: string; credentials: string };
+}
+
+export type SettingsPatch = Partial<
+  Pick<Settings, "models" | "concurrency" | "notifications" | "tasks" | "approvals">
+>;
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
@@ -76,6 +130,21 @@ export const api = {
     }),
   control: (id: string, action: "pause" | "resume" | "cancel") =>
     request<{ task: TaskView }>("POST", `/tasks/${id}/${action}`),
+  files: (id: string) => request<ArtifactList>("GET", `/tasks/${id}/files`),
+  file: (id: string, path: string) =>
+    request<{ file: ArtifactContent }>(
+      "GET",
+      `/tasks/${id}/files/content?path=${encodeURIComponent(path)}`,
+    ).then((r) => r.file),
+  reveal: (id: string, path?: string) =>
+    request<{ ok: true }>("POST", `/tasks/${id}/reveal`, path ? { path } : {}),
+  settings: () => request<{ settings: Settings }>("GET", "/settings").then((r) => r.settings),
+  updateSettings: (patch: SettingsPatch) =>
+    request<{ settings: Settings }>("PATCH", "/settings", patch).then((r) => r.settings),
+  setSecret: (name: string, value: string) =>
+    request<{ settings: Settings }>("PUT", `/secrets/${name}`, { value }).then((r) => r.settings),
+  deleteSecret: (name: string) =>
+    request<{ settings: Settings }>("DELETE", `/secrets/${name}`).then((r) => r.settings),
 };
 
 /** Every task's events as they commit, from the global position `after`. */

@@ -3,6 +3,7 @@ import type { TaskEvent } from "@warren/protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, subscribe, Unauthorized } from "./api.ts";
 import { NewTaskDialog } from "./components/NewTaskDialog.tsx";
+import { SettingsView } from "./components/SettingsView.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
 import { TaskView } from "./components/TaskView.tsx";
 import { TriggersView } from "./components/TriggersView.tsx";
@@ -33,7 +34,7 @@ function Shell() {
     new URLSearchParams(window.location.search).get("task"),
   );
   const [creating, setCreating] = useState(false);
-  const [showTriggers, setShowTriggers] = useState(false);
+  const [page, setPage] = useState<"tasks" | "triggers" | "settings">("tasks");
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const tasks = useQuery({ queryKey: ["tasks"], queryFn: api.tasks });
@@ -43,8 +44,13 @@ function Shell() {
   const select = useCallback((id: string | null) => {
     setSelected(id);
     setCreating(false);
-    setShowTriggers(false);
+    setPage("tasks");
     history.replaceState(null, "", id ? `?task=${id}` : window.location.pathname);
+  }, []);
+  const open = useCallback((next: "triggers" | "settings") => {
+    setPage(next);
+    setSelected(null);
+    history.replaceState(null, "", window.location.pathname);
   }, []);
   const closeDialog = useCallback(() => setCreating(false), []);
 
@@ -57,11 +63,14 @@ function Shell() {
       } else if (event.key === "k") {
         event.preventDefault();
         searchRef.current?.focus();
+      } else if (event.key === ",") {
+        event.preventDefault();
+        open("settings");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [open]);
 
   if (tasks.error instanceof Unauthorized) return <SignIn />;
 
@@ -78,15 +87,14 @@ function Shell() {
         onQuery={setQuery}
         onSelect={select}
         onNew={() => setCreating(true)}
-        showingTriggers={showTriggers}
-        onTriggers={() => {
-          setShowTriggers(true);
-          setSelected(null);
-          history.replaceState(null, "", window.location.pathname);
-        }}
+        page={page}
+        onTriggers={() => open("triggers")}
+        onSettings={() => open("settings")}
       />
       <main className="main">
-        {showTriggers ? (
+        {page === "settings" ? (
+          <SettingsView />
+        ) : page === "triggers" ? (
           <TriggersView onOpenTask={(id) => select(id)} />
         ) : selected ? (
           <TaskView key={selected} id={selected} />
@@ -121,6 +129,7 @@ function useLiveUpdates(enabled: boolean) {
       for (const id of touched) {
         client.invalidateQueries({ queryKey: ["task", id] });
         client.invalidateQueries({ queryKey: ["diff", id] });
+        client.invalidateQueries({ queryKey: ["files", id] });
       }
       touched.clear();
     };

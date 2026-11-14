@@ -12,6 +12,7 @@ import {
 } from "@warren/tools";
 import { type Config, loadConfig } from "./config/config.ts";
 import { loadSecrets } from "./config/secrets.ts";
+import { Settings } from "./config/settings.ts";
 import { warrenPaths } from "./paths.ts";
 import { workspaceDiff } from "./runtime/diff.ts";
 import { GitHubRuntime } from "./runtime/github.ts";
@@ -69,20 +70,31 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
   const secrets = loadSecrets({ file: paths.credentials });
   const db = openDatabase(paths.database);
   const sandbox = chooseSandbox(config.sandbox, paths.home, logger);
+  const privileged = [
+    publishBranchTool({ branchOf: branchName }),
+    openPullRequestTool({ branchOf: branchName, token: () => secrets.WARREN_GITHUB_TOKEN }),
+  ];
+  const defaultApprovals = Object.fromEntries(
+    privileged.map((tool) => [tool.name, tool.approval ?? "auto"] as const),
+  );
   const tools = options.tools ?? [
     ...builtinTools(sandbox),
-    ...[
-      publishBranchTool({ branchOf: branchName }),
-      openPullRequestTool({ branchOf: branchName, token: () => secrets.WARREN_GITHUB_TOKEN }),
-    ].map((tool) => ({ ...tool, approval: config.approvals[tool.name] ?? tool.approval }) as Tool),
+    // The rule is looked up per call, so a change in the settings applies to the next call.
+    ...privileged.map((tool) =>
+      Object.defineProperty({ ...tool }, "approval", {
+        enumerable: true,
+        get: () => config.approvals[tool.name] ?? tool.approval,
+      }),
+    ),
   ];
   const notifier = new Notifier();
-  const notifications = config.notifications
-    ? taskNotifications(
-        (id) => store.get(id)?.title,
-        options.notify ?? (process.platform === "darwin" ? macNotify : () => {}),
-      )
-    : () => {};
+  const taskNotify = taskNotifications(
+    (id) => store.get(id)?.title,
+    options.notify ?? (process.platform === "darwin" ? macNotify : () => {}),
+  );
+  const notifications: typeof taskNotify = (events) => {
+    if (config.notifications) taskNotify(events);
+  };
   let github: GitHubRuntime | undefined;
   const store: TaskStore = new TaskStore(db, options.clock ?? systemClock, (events) => {
     notifier.notify();
@@ -135,7 +147,18 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     notifier,
     config,
     token,
-    secrets: secretStatus(config.models, secrets),
+    secrets: () => secretStatus(config.models, secrets),
+    settings: new Settings({
+      config,
+      secrets,
+      defaultApprovals,
+      paths: { home: paths.home, config: paths.config, credentials: paths.credentials },
+      sandbox: sandbox.name,
+      env: process.env,
+      onConcurrency: (n) => scheduler.setConcurrency(n),
+    }),
+    workspaceOf: (id) => workspaces.pathOf(id),
+    ...(process.platform === "darwin" && { reveal: revealInFinder }),
     sandbox: sandbox.name,
     triggers,
     diff: async (task) => {
@@ -203,6 +226,16 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       return stopping;
     },
   };
+}
+
+/** `open -R` selects the item in Finder; it never opens or runs it, whatever the model wrote. */
+async function revealInFinder(path: string): Promise<void> {
+  const child = Bun.spawn(["open", "-R", path], { stdout: "ignore", stderr: "pipe" });
+  if ((await child.exited) !== 0) {
+    throw new Error(
+      `could not reveal ${path}: ${(await new Response(child.stderr).text()).trim()}`,
+    );
+  }
 }
 
 function chooseSandbox(setting: Config["sandbox"], home: string, logger: Logger): Sandbox {

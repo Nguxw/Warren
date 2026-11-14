@@ -13,11 +13,13 @@ export function providerClients(secrets: Secrets): ClientFactory {
   const clients = new Map<string, ModelClient>();
   return (config) => {
     const secret = secretOf(config);
-    const key = [config.provider, config.baseUrl ?? "", secret ?? ""].join("|");
+    const apiKey = secret ? secrets[secret] : undefined;
+    // The key's value is part of the identity, so a key replaced in the settings takes effect on
+    // the next model call without a restart.
+    const key = [config.provider, config.baseUrl ?? "", secret ?? "", apiKey ?? ""].join("|");
     const existing = clients.get(key);
     if (existing) return existing;
 
-    const apiKey = secret ? secrets[secret] : undefined;
     if (secret && !apiKey) {
       throw new Error(`${secret} is not set (environment or ~/.warren/credentials.env)`);
     }

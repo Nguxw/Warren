@@ -14,9 +14,11 @@ import {
   Globe,
   History,
   Offline,
+  Package,
   Pause,
   Play,
   PullRequest,
+  Reveal,
   Stop,
 } from "../icons.tsx";
 import {
@@ -27,10 +29,12 @@ import {
   deliverables,
   displayTitle,
   type KeyedEntry,
+  primaryArtifact,
   timeline,
 } from "../model.ts";
 import { Activity } from "./Activity.tsx";
 import { Changes } from "./Changes.tsx";
+import { Files, Location } from "./Files.tsx";
 import { StatusIcon } from "./Sidebar.tsx";
 
 export function TaskView({ id }: { id: string }) {
@@ -44,7 +48,9 @@ export function TaskView({ id }: { id: string }) {
     enabled: hasRepo,
     staleTime: 5_000,
   });
-  const [tab, setTab] = useState<"activity" | "changes">("activity");
+  const files = useQuery({ queryKey: ["files", id], queryFn: () => api.files(id) });
+  const [tab, setTab] = useState<"activity" | "changes" | "files">("activity");
+  const [openFile, setOpenFile] = useState<string>();
   const [replaying, setReplaying] = useState(false);
   const [replayAt, setReplayAt] = useState(0);
 
@@ -60,6 +66,10 @@ export function TaskView({ id }: { id: string }) {
   const replayed = replaying ? foldEvents(visible) : undefined;
   const shown: Task = replayed ? { ...replayed, status: statusOf(replayed) } : task.data;
   const changeCount = diff.data?.files.length ?? 0;
+  const fileCount = files.data?.files.length ?? 0;
+  // A repository task's result is its change; any other task's result is the files it wrote.
+  const resultTab = hasRepo ? "changes" : "files";
+  const resultCount = hasRepo ? changeCount : fileCount;
 
   return (
     <article className="task-view">
@@ -93,37 +103,52 @@ export function TaskView({ id }: { id: string }) {
           task={task.data}
           entries={entries}
           diff={diff.data}
+          files={hasRepo ? undefined : files.data?.files}
           onChanges={() => setTab("changes")}
+          onFile={(path) => {
+            setOpenFile(path);
+            setTab("files");
+          }}
         />
       )}
 
-      {hasRepo && (
-        <div className="tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "activity"}
-            className={tab === "activity" ? "on" : ""}
-            onClick={() => setTab("activity")}
-          >
-            {t("tab.activity")}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "changes"}
-            className={tab === "changes" ? "on" : ""}
-            onClick={() => setTab("changes")}
-          >
-            {t("tab.changes")}
-            {changeCount > 0 && <span className="count">{changeCount}</span>}
-          </button>
-        </div>
-      )}
+      <div className="tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "activity"}
+          className={tab === "activity" ? "on" : ""}
+          onClick={() => setTab("activity")}
+        >
+          {t("tab.activity")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === resultTab}
+          className={tab === resultTab ? "on" : ""}
+          onClick={() => setTab(resultTab)}
+        >
+          {t(hasRepo ? "tab.changes" : "tab.files")}
+          {resultCount > 0 && <span className="count">{resultCount}</span>}
+        </button>
+      </div>
 
       <div className="task-body">
         {tab === "changes" && hasRepo ? (
-          <Changes diff={diff.data} loading={diff.isLoading} error={diff.error} />
+          <>
+            {files.data && <Location taskId={id} root={files.data.root} />}
+            <Changes diff={diff.data} loading={diff.isLoading} error={diff.error} />
+          </>
+        ) : tab === "files" && !hasRepo ? (
+          <Files
+            taskId={id}
+            list={files.data}
+            loading={files.isLoading}
+            error={files.error}
+            selected={openFile}
+            onSelect={setOpenFile}
+          />
         ) : (
           <Activity entries={entries} />
         )}
@@ -226,7 +251,10 @@ function StatusCard(props: {
   task: Task;
   entries: KeyedEntry[];
   diff: { files: { additions: number; deletions: number }[] } | undefined;
+  /** For a task without a repository: the files it wrote, newest first. */
+  files: { path: string }[] | undefined;
   onChanges(): void;
+  onFile(path: string): void;
 }) {
   const { t } = useI18n();
   const { task } = props;
@@ -266,6 +294,8 @@ function StatusCard(props: {
 
   const outcome = task.ended?.outcome ?? "completed";
   const result = deliverables(props.entries);
+  const produced = props.files ?? [];
+  const primary = primaryArtifact(produced);
   const files = props.diff?.files ?? [];
   const add = files.reduce((n, f) => n + f.additions, 0);
   const del = files.reduce((n, f) => n + f.deletions, 0);
@@ -286,6 +316,18 @@ function StatusCard(props: {
             {t("card.pr", { number: result.pullRequest.number })}
           </a>
         )}
+        {primary && (
+          <button type="button" className="chip primary" onClick={() => props.onFile(primary.path)}>
+            <Package size={14} />
+            {t("card.open", { name: primary.path.split("/").at(-1) ?? primary.path })}
+          </button>
+        )}
+        {produced.length > 1 && (
+          <button type="button" className="chip" onClick={() => props.onFile(primary?.path ?? "")}>
+            {t("card.files", { n: produced.length })}
+          </button>
+        )}
+        {(produced.length > 0 || props.diff) && <RevealChip taskId={task.id} />}
         {props.diff && (
           <button type="button" className="chip" onClick={props.onChanges}>
             {files.length > 0
@@ -295,6 +337,22 @@ function StatusCard(props: {
         )}
       </div>
     </section>
+  );
+}
+
+function RevealChip({ taskId }: { taskId: string }) {
+  const { t } = useI18n();
+  const reveal = useMutation({ mutationFn: () => api.reveal(taskId) });
+  return (
+    <button
+      type="button"
+      className="chip"
+      title={reveal.error?.message}
+      onClick={() => reveal.mutate()}
+    >
+      <Reveal size={14} />
+      {t("card.reveal")}
+    </button>
   );
 }
 
