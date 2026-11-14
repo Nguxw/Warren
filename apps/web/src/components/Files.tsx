@@ -1,12 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { type ArtifactContent, type ArtifactFile, type ArtifactList, api } from "../api.ts";
 import { useI18n } from "../context.tsx";
 import { formatAgo } from "../i18n.ts";
 import { Check, Copy, FileIcon, Folder, Reveal } from "../icons.tsx";
 import { formatBytes, groupFiles, previewKind } from "../model.ts";
+import { Markdown } from "./Markdown.tsx";
 
 /** What the task produced: its workspace's files, and a preview of the one picked. */
 export function Files(props: {
@@ -85,6 +84,7 @@ export function Files(props: {
               taskId={props.taskId}
               path={selected.path}
               modifiedAt={selected.modifiedAt}
+              onFile={props.onSelect}
             />
           ) : (
             <p className="empty-note">{t("files.select")}</p>
@@ -160,7 +160,12 @@ export function Location(props: { taskId: string; root: string; path?: string })
   );
 }
 
-function Preview(props: { taskId: string; path: string; modifiedAt: number }) {
+function Preview(props: {
+  taskId: string;
+  path: string;
+  modifiedAt: number;
+  onFile(path: string): void;
+}) {
   const { t } = useI18n();
   const file = useQuery({
     queryKey: ["file", props.taskId, props.path, props.modifiedAt],
@@ -195,28 +200,21 @@ function Preview(props: { taskId: string; path: string; modifiedAt: number }) {
       ) : !content ? (
         <p className="empty-note">{t("files.loading")}</p>
       ) : (
-        <PreviewBody content={content} source={source} />
+        <PreviewBody content={content} source={source} onFile={props.onFile} />
       )}
     </section>
   );
 }
 
-/** Links leave the app; only web images load, so a document cannot reach the daemon's API. */
-const MARKDOWN: Components = {
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noreferrer">
-      {children}
-    </a>
-  ),
-  img: ({ src, alt }) =>
-    typeof src === "string" && /^https?:\/\//.test(src) ? (
-      <img src={src} alt={alt ?? ""} loading="lazy" />
-    ) : (
-      <span className="img-placeholder">{alt || src}</span>
-    ),
-};
-
-function PreviewBody({ content, source }: { content: ArtifactContent; source: boolean }) {
+function PreviewBody({
+  content,
+  source,
+  onFile,
+}: {
+  content: ArtifactContent;
+  source: boolean;
+  onFile(path: string): void;
+}) {
   const { t } = useI18n();
   if (content.kind === "image") {
     return (
@@ -234,11 +232,13 @@ function PreviewBody({ content, source }: { content: ArtifactContent; source: bo
       {content.truncated && <p className="notice warn">{t("files.textTruncated")}</p>}
       {kind === "html" && <p className="notice info">{t("files.htmlNote")}</p>}
       {kind === "markdown" && !source ? (
-        <div className="markdown">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN}>
-            {content.text}
-          </ReactMarkdown>
-        </div>
+        <Markdown
+          variant="document"
+          onFile={onFile}
+          base={content.path.split("/").slice(0, -1).join("/")}
+        >
+          {content.text}
+        </Markdown>
       ) : (
         <pre className="preview-text">{content.text}</pre>
       )}

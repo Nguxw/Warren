@@ -770,7 +770,6 @@ a.chip:hover {
 .card-summary {
   margin: 8px 0 0;
   color: var(--text-2);
-  white-space: pre-wrap;
 }
 .card-chips {
   display: flex;
@@ -792,7 +791,6 @@ a.chip:hover {
   margin: 4px 0 12px;
   font-size: 16px;
   line-height: 1.55;
-  white-space: pre-wrap;
 }
 .answer-box {
   display: flex;
@@ -977,10 +975,14 @@ a.chip:hover {
   overflow-wrap: anywhere;
 }
 
-.message p {
+/* The person's own text keeps its line breaks; Warren's is Markdown. */
+.from-user :where(p) {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.message.from-warren {
+  overflow-wrap: break-word;
 }
 .message.from-warren {
   padding: 2px 4px;
@@ -1017,10 +1019,9 @@ a.chip:hover {
   font-size: 12px;
   color: var(--faint);
 }
-.reasoning p {
-  margin: 4px 0 0;
+.reasoning :where(.markdown) {
+  margin-top: 4px;
   font-style: italic;
-  white-space: pre-wrap;
 }
 
 .asked {
@@ -1038,7 +1039,6 @@ a.chip:hover {
 }
 .asked-prompt {
   margin: 2px 0 6px;
-  white-space: pre-wrap;
 }
 .asked-answer {
   display: flex;
@@ -1212,10 +1212,8 @@ a.chip:hover {
 
 /* Documents the task wrote, set like a page rather than a terminal. */
 .markdown {
-  padding: 8px 24px 20px;
-  font-size: 14.5px;
-  line-height: 1.75;
-  color: var(--text);
+  line-height: 1.7;
+  color: inherit;
   /* Long words and URLs break only when they must, so table columns keep numbers whole. */
   overflow-wrap: break-word;
 }
@@ -1313,9 +1311,46 @@ a.chip:hover {
 .markdown :where(img) {
   max-width: 100%;
 }
-/* After the element rules, which it overrides at equal specificity. */
+/* After the element rules, which they override at equal specificity. */
 .markdown > :first-child {
-  margin-top: 12px;
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+/* A file preview reads as a page. */
+.markdown.document {
+  padding: 20px 24px;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--text);
+}
+/* Inside a message or a card, headings stay close to the text size. */
+.markdown.inline :where(h1, h2, h3, h4) {
+  margin: 0.9em 0 0.35em;
+  padding: 0;
+  border: 0;
+  font-size: 1.05em;
+}
+.markdown.inline :where(p, ul, ol, blockquote, table, pre) {
+  margin: 0.45em 0;
+}
+.md-file-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.md-file-link:hover {
+  text-decoration: underline;
+}
+.md-file-link.static {
+  cursor: default;
+  text-decoration: none;
 }
 .img-placeholder {
   color: var(--muted);

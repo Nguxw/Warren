@@ -12,6 +12,7 @@ import {
   groupFiles,
   groupTasks,
   lastModel,
+  localLink,
   previewKind,
   primaryArtifact,
   timeline,
@@ -248,6 +249,16 @@ describe("artifacts", () => {
       ["data", ["data/x/y.csv"]],
       ["sources", ["sources/a.json", "sources/b.json"]],
     ]);
+  });
+
+  test("relative Markdown links name workspace files; others leave the app", () => {
+    expect(localLink("GitHub%E4%BB%8A%E6%97%A5.md")).toBe("GitHub今日.md");
+    expect(localLink("./data/x.json")).toBe("data/x.json");
+    expect(localLink("../a.md", "notes/2026")).toBe("notes/a.md");
+    expect(localLink("b.md#top", "notes")).toBe("notes/b.md");
+    for (const href of ["https://github.com", "mailto:a@b.c", "#top", "/etc/passwd", "../x", ""]) {
+      expect(localLink(href)).toBeUndefined();
+    }
   });
 
   test("previews and sizes", () => {

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { foldEvents, statusOf } from "@warren/core";
-import { type KeyboardEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { api, type TaskView as Task } from "../api.ts";
 import { useI18n, useNow } from "../context.tsx";
 import { formatDuration, stepLabel } from "../i18n.ts";
@@ -24,6 +24,7 @@ import {
   Stop,
   Trash,
 } from "../icons.tsx";
+import { useEnterToSend } from "../keys.ts";
 import {
   argsPreview,
   categoryOf,
@@ -39,6 +40,7 @@ import {
 import { Activity } from "./Activity.tsx";
 import { Changes } from "./Changes.tsx";
 import { Files, Location } from "./Files.tsx";
+import { Markdown } from "./Markdown.tsx";
 import { StatusIcon } from "./Sidebar.tsx";
 
 export function TaskView({
@@ -167,7 +169,17 @@ export function TaskView({
             onSelect={setOpenFile}
           />
         ) : (
-          <Activity entries={entries} />
+          <Activity
+            entries={entries}
+            onFile={
+              hasRepo
+                ? undefined
+                : (path) => {
+                    setOpenFile(path);
+                    setTab("files");
+                  }
+            }
+          />
         )}
       </div>
 
@@ -343,7 +355,11 @@ function StatusCard(props: {
   return (
     <section className={`status-card ended ${outcome}`}>
       <p className="card-title">{t(`card.${outcome}`)}</p>
-      {task.ended?.summary && <p className="card-summary">{task.ended.summary}</p>}
+      {task.ended?.summary && (
+        <div className="card-summary">
+          <Markdown onFile={props.onFile}>{task.ended.summary}</Markdown>
+        </div>
+      )}
       <div className="card-chips">
         {result.branch && (
           <span className="chip static">
@@ -482,21 +498,19 @@ function AttentionForm(props: { taskId: string; item: Task["attention"][number] 
   const answer = () => {
     if (!approval && text.trim()) resolve.mutate(undefined);
   };
+  const enter = useEnterToSend<HTMLTextAreaElement>(answer);
   return (
     <div className="attention-form">
       <p className="card-label">{approval ? t("card.approval") : t("card.question")}</p>
-      <p className="card-prompt">{props.item.prompt}</p>
+      <div className="card-prompt">
+        <Markdown>{props.item.prompt}</Markdown>
+      </div>
       <div className="answer-box">
         <textarea
           rows={approval ? 1 : 2}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (sends(e)) {
-              e.preventDefault();
-              answer();
-            }
-          }}
+          {...enter}
           placeholder={approval ? t("card.denyNote") : t("card.answerPlaceholder")}
         />
         <div className="answer-actions">
@@ -536,11 +550,6 @@ function AttentionForm(props: { taskId: string; item: Task["attention"][number] 
   );
 }
 
-/** Enter sends; Shift+Enter is a new line, and Enter that confirms an input method's word is not a send. */
-function sends(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
-  return event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing;
-}
-
 function Composer({ task }: { task: Task }) {
   const { t } = useI18n();
   const [text, setText] = useState("");
@@ -548,10 +557,11 @@ function Composer({ task }: { task: Task }) {
     mutationFn: () => api.send(task.id, text),
     onSuccess: () => setText(""),
   });
-  if (task.status === "ended") return <p className="composer-closed">{t("composer.ended")}</p>;
   const submit = () => {
     if (text.trim() && !send.isPending) send.mutate();
   };
+  const enter = useEnterToSend<HTMLTextAreaElement>(submit);
+  if (task.status === "ended") return <p className="composer-closed">{t("composer.ended")}</p>;
   return (
     <form
       className="composer"
@@ -564,12 +574,7 @@ function Composer({ task }: { task: Task }) {
         rows={1}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (sends(e)) {
-            e.preventDefault();
-            submit();
-          }
-        }}
+        {...enter}
         placeholder={task.status === "idle" ? t("composer.reply") : t("composer.add")}
       />
       <span className="composer-hint">{t("composer.hint")}</span>

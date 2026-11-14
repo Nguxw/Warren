@@ -538,3 +538,29 @@ export function lastModel(events: readonly TaskEvent[]): string | undefined {
   }
   return undefined;
 }
+
+/**
+ * The workspace path a Markdown link points to, if it is a relative link: `report.md`,
+ * `./data/x.json`, `../a.md` from a file in a folder. Web links, anchors, absolute paths and links
+ * that climb out of the workspace are not local.
+ */
+export function localLink(href: string, base = ""): string | undefined {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("#") || href.startsWith("/")) {
+    return undefined;
+  }
+  let path: string;
+  try {
+    path = decodeURIComponent(href.split(/[?#]/)[0] ?? "");
+  } catch {
+    return undefined;
+  }
+  const parts: string[] = base ? base.split("/").filter(Boolean) : [];
+  for (const part of path.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") {
+      if (parts.length === 0) return undefined;
+      parts.pop();
+    } else parts.push(part);
+  }
+  return parts.length > 0 ? parts.join("/") : undefined;
+}

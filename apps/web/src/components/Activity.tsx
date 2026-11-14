@@ -23,6 +23,7 @@ import {
   type StepCategory,
   type ToolEntry,
 } from "../model.ts";
+import { Markdown } from "./Markdown.tsx";
 
 const CATEGORY_ICON: Record<StepCategory, (p: { size?: number }) => ReactNode> = {
   inspect: Eye,
@@ -33,7 +34,14 @@ const CATEGORY_ICON: Record<StepCategory, (p: { size?: number }) => ReactNode> =
 };
 const ORDER: StepCategory[] = ["inspect", "edit", "run", "publish", "other"];
 
-export function Activity({ entries }: { entries: KeyedEntry[] }) {
+export function Activity({
+  entries,
+  onFile,
+}: {
+  entries: KeyedEntry[];
+  /** Opens a workspace file that a message links to. */
+  onFile?: (path: string) => void;
+}) {
   return (
     <ol className="activity">
       {activity(entries).map((block) => (
@@ -41,7 +49,11 @@ export function Activity({ entries }: { entries: KeyedEntry[] }) {
           key={block.key}
           className={`block block-${block.kind === "steps" ? "steps" : block.entry.kind}`}
         >
-          {block.kind === "steps" ? <Steps block={block} /> : <EntryView entry={block.entry} />}
+          {block.kind === "steps" ? (
+            <Steps block={block} />
+          ) : (
+            <EntryView entry={block.entry} onFile={onFile} />
+          )}
         </li>
       ))}
     </ol>
@@ -122,7 +134,13 @@ function ToolRow({ tool }: { tool: ToolEntry }) {
   );
 }
 
-function EntryView({ entry }: { entry: KeyedEntry }): ReactNode {
+function EntryView({
+  entry,
+  onFile,
+}: {
+  entry: KeyedEntry;
+  onFile: ((path: string) => void) | undefined;
+}): ReactNode {
   const { t } = useI18n();
   const time = new Date(entry.at).toLocaleTimeString();
   switch (entry.kind) {
@@ -142,7 +160,7 @@ function EntryView({ entry }: { entry: KeyedEntry }): ReactNode {
     case "assistant":
       return (
         <div className="message from-warren" title={time}>
-          <p>{entry.text}</p>
+          <Markdown onFile={onFile}>{entry.text}</Markdown>
         </div>
       );
     case "reasoning":
@@ -153,7 +171,7 @@ function EntryView({ entry }: { entry: KeyedEntry }): ReactNode {
               ? t("activity.thoughtTokens", { n: compact(entry.tokens) })
               : t("activity.thought")}
           </span>
-          {entry.text && <p>{entry.text}</p>}
+          {entry.text && <Markdown>{entry.text}</Markdown>}
         </div>
       );
     case "attention":
@@ -162,7 +180,9 @@ function EntryView({ entry }: { entry: KeyedEntry }): ReactNode {
           <span className="asked-label">
             {entry.type === "approval" ? t("who.approval") : t("who.question")}
           </span>
-          <p className="asked-prompt">{entry.prompt}</p>
+          <div className="asked-prompt">
+            <Markdown onFile={onFile}>{entry.prompt}</Markdown>
+          </div>
           <p className="asked-answer">
             {entry.resolved ? (
               <>

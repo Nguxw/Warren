@@ -1,18 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TaskSummary } from "@warren/protocol";
-import {
-  type KeyboardEvent,
-  type ReactNode,
-  type RefObject,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.ts";
 import { useI18n } from "../context.tsx";
 import type { MessageKey } from "../i18n.ts";
 import { ArrowUp, Check, Close, Cpu, Folder, Globe, Logo, Package } from "../icons.tsx";
+import { useEnterToSend } from "../keys.ts";
 
 const ROLES = ["main", "hard", "cheap"] as const;
 type Role = (typeof ROLES)[number];
@@ -121,14 +114,7 @@ function TaskComposer(props: {
   const submit = () => {
     if (ready) create.mutate();
   };
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter sends; Shift+Enter is a new line; Enter that confirms an input method's candidate
-    // (Chinese, Japanese) is the input method's, not a send.
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      submit();
-    }
-  };
+  const enter = useEnterToSend<HTMLTextAreaElement>(submit);
 
   return (
     <form
@@ -143,7 +129,7 @@ function TaskComposer(props: {
         rows={3}
         value={props.text}
         onChange={(e) => props.onText(e.target.value)}
-        onKeyDown={onKeyDown}
+        {...enter}
         placeholder={t("home.placeholder")}
         // biome-ignore lint/a11y/noAutofocus: the start page exists to take this text
         autoFocus
@@ -234,7 +220,6 @@ function FolderMenu(props: {
 }) {
   const { t } = useI18n();
   const [typing, setTyping] = useState(false);
-  const [typed, setTyped] = useState("");
   const pick = useMutation({
     mutationFn: () => api.pickFolder(props.prompt),
     onSuccess: (path) => {
@@ -288,21 +273,12 @@ function FolderMenu(props: {
             <span className="menu-item-main">{t("home.pickFolder")}</span>
           </button>
           {typing ? (
-            <input
-              className="input mono menu-input"
-              value={typed}
+            <PathInput
               placeholder={props.placeholder}
-              spellCheck={false}
-              // biome-ignore lint/a11y/noAutofocus: shown because the person asked to type a path
-              autoFocus
-              onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  if (typed.trim()) props.onChange(typed.trim());
-                  setTyping(false);
-                  close();
-                }
+              onApply={(path) => {
+                if (path) props.onChange(path);
+                setTyping(false);
+                close();
               }}
             />
           ) : (
@@ -314,6 +290,24 @@ function FolderMenu(props: {
         </>
       )}
     </Menu>
+  );
+}
+
+/** A typed folder path, applied with Enter (an input method's Enter stays with the input method). */
+function PathInput(props: { placeholder: string; onApply(path: string): void }) {
+  const [value, setValue] = useState("");
+  const enter = useEnterToSend<HTMLInputElement>(() => props.onApply(value.trim()));
+  return (
+    <input
+      className="input mono menu-input"
+      value={value}
+      placeholder={props.placeholder}
+      spellCheck={false}
+      // biome-ignore lint/a11y/noAutofocus: shown because the person asked to type a path
+      autoFocus
+      onChange={(e) => setValue(e.target.value)}
+      {...enter}
+    />
   );
 }
 
