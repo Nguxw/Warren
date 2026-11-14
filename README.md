@@ -16,6 +16,8 @@
   <img src="https://img.shields.io/badge/runtime-Bun-black.svg" alt="Bun">
 </p>
 
+<p align="center">中文 · <a href="README.en.md">English</a></p>
+
 <p align="center">
   <img src="docs/images/task.jpg" width="860" alt="一个调研任务的结果：完成总结和报告预览">
 </p>

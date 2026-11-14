@@ -1,5 +1,22 @@
 {
   "name": "warren",
+  "description": "A long-running local agent that works in the background on your own computer",
+  "homepage": "https://github.com/Nguxw/Warren#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nguxw/Warren.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Nguxw/Warren/issues"
+  },
+  "keywords": [
+    "agent",
+    "llm",
+    "local-first",
+    "sandbox",
+    "bun",
+    "typescript"
+  ],
   "private": true,
   "type": "module",
   "workspaces": [
