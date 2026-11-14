@@ -47,6 +47,11 @@ function Shell() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const tasks = useQuery({ queryKey: ["tasks"], queryFn: api.tasks });
   const health = useQuery({ queryKey: ["health"], queryFn: api.health, staleTime: 60_000 });
+  const update = useQuery({
+    queryKey: ["update"],
+    queryFn: api.update,
+    refetchInterval: 60 * 60_000,
+  });
   useLiveUpdates(!tasks.isError);
 
   const select = useCallback((id: string | null) => {
@@ -102,6 +107,7 @@ function Shell() {
         page={page}
         onTriggers={() => open("triggers")}
         onSettings={() => open("settings")}
+        updateAvailable={Boolean(update.data?.available)}
         onAutomations={() => open("automations")}
         onSkills={() => open("skills")}
         onMcp={() => open("mcp")}

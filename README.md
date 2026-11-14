@@ -63,17 +63,25 @@
 
 ## 快速开始
 
-**环境：** macOS 13 或更高、[Bun](https://bun.sh) 1.4+、git。还需要一个模型的 API key（OpenAI、Anthropic 或任意 OpenAI 兼容接口；本地的 Ollama 不需要 key）。
+**环境：** macOS 13 或更高（Apple Silicon 或 Intel）、git。还需要一个模型的 API key（OpenAI、Anthropic 或任意 OpenAI 兼容接口；本地的 Ollama 不需要 key）。
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Nguxw/Warren/main/install.sh | sh
+
+warren service install              # 登录时自动启动守护进程（launchd）；也可以在终端里运行 warren daemon
+warren open                         # 在浏览器里打开界面
+```
+
+安装脚本从 [Releases](https://github.com/Nguxw/Warren/releases) 下载适合这台 Mac 的单文件程序，校验哈希后放进 `~/.local/bin`。之后用 `warren update` 更新，或者在设置页"关于"里一键安装；每次更新都会先校验发布签名（见 [012](docs/012-releases-and-updates.md)）。
+
+**从源码构建：** 需要 [Bun](https://bun.sh) 1.4+。
 
 ```sh
 git clone https://github.com/Nguxw/Warren.git
 cd Warren
 bun install
 bun run build                       # 编译出单文件程序 dist/warren（包含界面）
-cp dist/warren /usr/local/bin/      # 或者 PATH 中的任意目录
-
-warren service install              # 登录时自动启动守护进程（launchd）；也可以在终端里运行 warren daemon
-warren open                         # 在浏览器里打开界面
+cp dist/warren ~/.local/bin/        # 或者 PATH 中的任意目录
 ```
 
 打开界面后，在左下角的 **设置 → API 密钥** 里填入 key，就可以在起始页交代第一件事了。也可以直接写入密钥文件：
@@ -84,7 +92,7 @@ echo 'WARREN_OPENAI_API_KEY=sk-...' >> ~/.warren/credentials.env
 chmod 600 ~/.warren/credentials.env
 ```
 
-**桌面应用（可选）：** 需要 Rust 工具链（`brew install rustup && rustup default stable`）。
+**桌面应用（可选）：** 从 Releases 下载 `Warren-darwin-arm64.app.zip`，解压后拖进"应用程序"。应用还没有经过 Apple 公证，第一次打开前执行 `xattr -dr com.apple.quarantine /Applications/Warren.app`，或者在访达里右键 →"打开"。也可以自己构建，需要 Rust 工具链（`brew install rustup && rustup default stable`）：
 
 ```sh
 cd apps/desktop && bun run build
@@ -111,10 +119,11 @@ open src-tauri/target/release/bundle/macos/Warren.app
   - 技能：添加 Agent Skills 格式的文件夹，仓库里的 `examples/skills/` 有两个例子（调研报告、代码审查）。
   - MCP：添加本地命令或远程地址，测试连接，按服务器设置是否需要审批。详见 [011](docs/011-skills-and-mcp.md)。
 
+- **设置：** 语言、外观、模型、API 密钥、是否默认联网、并发数、哪些动作需要审批；"关于"里显示版本并检查更新。
+
 <p align="center">
   <img src="docs/images/automations.jpg" width="720" alt="自动化页">
 </p>
-- **设置：** 语言、外观、模型、API 密钥、是否默认联网、并发数、哪些动作需要审批。
 
 快捷键：`/` 技能和操作 · `⌘N` 新任务 · `⌘K` 搜索 · `⌘,` 设置 · `↩` 发送 · `⇧↩` 换行。
 
@@ -133,6 +142,7 @@ warren delete <id> --yes         # 删除任务及其工作区
 warren automations [run <id>]    # 列出自动化，或立即运行一个
 warren triggers                  # GitHub 事件及 Warren 的决定
 warren stats                     # 成功率、费用、用时、打扰次数、缓存命中率
+warren update [--check]          # 检查并安装新版本（校验签名）
 ```
 
 `<id>` 可以用列表里显示的 8 位短 id。
@@ -251,13 +261,14 @@ WARREN_HOME=/tmp/warren-dev bun apps/cli/src/main.ts daemon   # 从源码运行�
 | [009 基准评测](docs/009-swebench.md) | SWE-bench Verified 子集的方法、结果与复现 |
 | [010 自动化](docs/010-automations.md) | 按时间表开始的任务 |
 | [011 技能与 MCP](docs/011-skills-and-mcp.md) | 技能的格式与加载；MCP 服务器的连接、信任和审批 |
+| [012 发行版与更新](docs/012-releases-and-updates.md) | 发布产物、签名与信任、安装脚本、自动更新 |
 
 ## 路线图
 
 - Linux 沙箱（bubblewrap），让 Linux 上的任务也运行在受限环境里
 - 按域名的网络白名单，替代"全开或全关"
 - 更多工作来源：邮件、日历、Slack 等连接器
-- 签名的安装包和自动更新
+- 经过 Apple 公证的桌面应用，以及 Intel 版桌面应用
 
 ## 许可
 

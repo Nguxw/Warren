@@ -2965,6 +2965,14 @@ select.input {
   color: var(--accent);
 }
 
+.update-dot {
+  width: 7px;
+  height: 7px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 /* ------------------------------------------------------------ narrow windows */
 
 @media (max-width: 820px) {

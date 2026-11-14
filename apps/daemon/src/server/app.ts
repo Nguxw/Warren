@@ -31,8 +31,11 @@ import { checkFolder, FolderError, type FolderRules } from "../runtime/folders.t
 import type { Scheduler } from "../runtime/scheduler.ts";
 import { computeStats } from "../runtime/stats.ts";
 import { saveResults, TaskRequestError, taskData } from "../runtime/tasks.ts";
+import type { UpdateService } from "../runtime/update-service.ts";
+import { UpdateError } from "../runtime/updates.ts";
 import { type TaskStore, UnknownTaskError } from "../store/task-store.ts";
 import type { TriggerStore } from "../store/trigger-store.ts";
+import { VERSION } from "../version.ts";
 import type { Notifier } from "./notifier.ts";
 
 export interface AppDeps {
@@ -53,6 +56,7 @@ export interface AppDeps {
   automations: AutomationRunner;
   skills: SkillCatalog;
   mcp: McpHub;
+  updates: UpdateService;
   /** Asks the person to pick a folder with the system's dialog; undefined if they cancel. */
   pickFolder?(prompt: string): Promise<string | undefined>;
   /** Stops a task if it is running and removes its log and its files. */
@@ -109,12 +113,27 @@ export function createApp(deps: AppDeps) {
       return c.json({ error: error.message }, 400);
     }
     if (error instanceof UnknownAutomationError) return c.json({ error: error.message }, 404);
+    if (error instanceof UpdateError) return c.json({ error: error.message }, 409);
     return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
   });
 
   app.get("/health", (c) =>
-    c.json({ ok: true, pid: process.pid, secrets: deps.secrets(), sandbox: deps.sandbox }),
+    c.json({
+      ok: true,
+      pid: process.pid,
+      version: VERSION,
+      secrets: deps.secrets(),
+      sandbox: deps.sandbox,
+    }),
   );
+
+  /** The running version and the latest release, as last checked. */
+  app.get("/update", (c) => c.json({ update: deps.updates.view() }));
+
+  app.post("/update/check", async (c) => c.json({ update: await deps.updates.check() }));
+
+  /** Installs the latest signed release; under launchd the daemon restarts into it. */
+  app.post("/update/install", async (c) => c.json(await deps.updates.install()));
 
   app.get("/settings", (c) => c.json({ settings: deps.settings.view() }));
 

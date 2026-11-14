@@ -123,6 +123,8 @@ const ConfigFile = z.object({
         .default({}),
     })
     .optional(),
+  /** Whether the released binary checks for a new release once a day (docs/012). */
+  updates: z.object({ check: z.boolean().default(true) }).optional(),
   /** Skills live in <home>/skills; these installed ones are turned off. */
   skills: z.object({ disabled: z.array(z.string()).default([]) }).optional(),
   github: z
@@ -174,6 +176,7 @@ export interface Config {
   notifications: boolean;
   mcp: { servers: Record<string, McpServerConfig> };
   skills: { disabled: string[] };
+  updates: { check: boolean };
   github?: GitHubConfig;
 }
 
@@ -203,6 +206,7 @@ export function parseConfig(raw: unknown, source: string): Config {
     notifications,
     mcp,
     skills,
+    updates,
     github,
   } = parsed.data;
   return {
@@ -215,6 +219,7 @@ export function parseConfig(raw: unknown, source: string): Config {
     notifications: notifications ?? true,
     mcp: { servers: mcp?.servers ?? {} },
     skills: { disabled: skills?.disabled ?? [] },
+    updates: { check: updates?.check ?? true },
     ...(github && { github }),
   };
 }

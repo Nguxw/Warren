@@ -44,6 +44,8 @@ export function Sidebar(props: {
   onTriggers(): void;
   onSettings(): void;
   onAutomations(): void;
+  /** A newer release is out; the settings link shows it. */
+  updateAvailable?: boolean;
   onSkills(): void;
   onMcp(): void;
   page: "tasks" | "triggers" | "settings" | "automations" | "skills" | "mcp";
@@ -170,10 +172,11 @@ export function Sidebar(props: {
           type="button"
           className={`foot-link ${props.page === "settings" ? "on" : ""}`}
           onClick={props.onSettings}
-          title={`${t("app.settings")} (⌘,)`}
+          title={props.updateAvailable ? t("update.badgeTitle") : `${t("app.settings")} (⌘,)`}
         >
           <Gear size={14} />
           {t("app.settings")}
+          {props.updateAvailable && <span className="update-dot" aria-hidden="true" />}
         </button>
         <button
           type="button"

@@ -25,7 +25,8 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 - `evals/swebench/` — SWE-bench Verified subset: `sample.py` draws instances, `run.ts` runs them as ordinary Warren tasks, `score.ts` scores with the official harness in Docker and cleans up (`docs/009`).
 - Automations (`docs/010`): schedule math is pure in `core/schedule.ts`; `daemon/runtime/automations.ts` starts runs (task + run record in one transaction); task creation and saving results are shared in `daemon/runtime/tasks.ts`.
 - Skills and MCP (`docs/011`): skills (Agent Skills format) in `tools/src/skills.ts`, loaded into the task's scratch; the MCP client is `packages/mcp` (`McpHub`), its tools reach the loop through `LoopDeps.moreTools`, filtered by `Grant.mcpServers`; non-read-only MCP tools are `external`.
-- Design docs: `docs/000`–`011`.
+- Releases (`docs/012`): one version in the root `package.json` (`bun scripts/version.ts X.Y.Z` also sets Tauri's); `scripts/release.ts` builds and signs `release.json` (Ed25519); a `v*` tag runs `.github/workflows/release.yml`. `daemon/runtime/updates.ts` installs only what the compiled-in public key verifies; `update-service.ts` checks daily, compiled binary only.
+- Design docs: `docs/000`–`012`.
 
 ## Rules that are expensive to break
 
@@ -36,6 +37,7 @@ Local, always-on, long-horizon agent. TypeScript + Bun workspaces. Design docs i
 - Paths reach the Seatbelt profile only as `-D` parameters, never spliced into profile text.
 - Migrations in `apps/daemon/src/store/migrations.ts` are forward-only; never edit a released one.
 - Warren uses only its own credentials and `~/.warren` (`WARREN_HOME`); never read or write `~/.codex`, `~/.claude` or `gh` config.
+- The release signing key (`~/.warren-release/signing-key`, Actions secret `WARREN_RELEASE_SIGNING_KEY`) never enters the repository; changing `RELEASE_PUBLIC_KEY` strands every installed copy.
 
 ## Conventions
 

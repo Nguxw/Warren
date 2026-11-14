@@ -93,6 +93,8 @@ export interface Settings {
   approvals: Record<string, "required" | "auto">;
   mcpServers: Record<string, McpServer>;
   disabledSkills: string[];
+  updateCheck: boolean;
+  version: string;
   secrets: SecretInfo[];
   sandbox: string;
   paths: { home: string; config: string; credentials: string };
@@ -123,10 +125,28 @@ export interface SkillInfo {
   error?: string;
 }
 
+export interface UpdateStatus {
+  current: string;
+  latest?: string;
+  available: boolean;
+  url?: string;
+  checkedAt?: number;
+  unpublished?: boolean;
+  error?: string;
+  /** Whether this daemon is the released binary, which can replace itself. */
+  canInstall: boolean;
+}
+
 export type SettingsPatch = Partial<
   Pick<
     Settings,
-    "models" | "concurrency" | "notifications" | "tasks" | "approvals" | "disabledSkills"
+    | "models"
+    | "concurrency"
+    | "notifications"
+    | "tasks"
+    | "approvals"
+    | "disabledSkills"
+    | "updateCheck"
   >
 > & { mcpServers?: Record<string, McpServer | null> };
 
@@ -198,6 +218,10 @@ export const api = {
   runAutomation: (id: string) =>
     request<{ taskId?: string }>("POST", `/automations/${id}/run`).then((r) => r.taskId),
   settings: () => request<{ settings: Settings }>("GET", "/settings").then((r) => r.settings),
+  update: () => request<{ update: UpdateStatus }>("GET", "/update").then((r) => r.update),
+  checkUpdate: () =>
+    request<{ update: UpdateStatus }>("POST", "/update/check").then((r) => r.update),
+  installUpdate: () => request<{ version: string; restarting: boolean }>("POST", "/update/install"),
   skills: () => request<{ skills: SkillInfo[]; root: string }>("GET", "/skills"),
   installSkill: (path: string) => request<{ skill: SkillInfo }>("POST", "/skills", { path }),
   deleteSkill: (name: string) => request<{ deleted: string }>("DELETE", `/skills/${name}`),

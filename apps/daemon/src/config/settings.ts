@@ -1,6 +1,7 @@
 import { renameSync, writeFileSync } from "node:fs";
 import { McpServerConfig } from "@warren/mcp";
 import { z } from "zod";
+import { VERSION } from "../version.ts";
 import { type Config, ModelConfig, parseConfig, readRawConfig, secretOf } from "./config.ts";
 import { maskSecret, OPENAI_KEY, type Secrets, writeSecret } from "./secrets.ts";
 
@@ -27,6 +28,7 @@ export const SettingsPatch = z.object({
   mcpServers: z.record(z.string(), McpServerConfig.nullable()).optional(),
   /** Installed skills to turn off (the whole list). */
   disabledSkills: z.array(z.string()).optional(),
+  updateCheck: z.boolean().optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatch>;
 
@@ -55,6 +57,8 @@ export interface SettingsView {
   approvals: Record<string, "required" | "auto">;
   mcpServers: Record<string, McpServerConfig>;
   disabledSkills: string[];
+  updateCheck: boolean;
+  version: string;
   secrets: SecretInfo[];
   sandbox: string;
   paths: { home: string; config: string; credentials: string };
@@ -92,6 +96,8 @@ export class Settings {
       approvals: { ...this.deps.defaultApprovals, ...config.approvals },
       mcpServers: config.mcp.servers,
       disabledSkills: config.skills.disabled,
+      updateCheck: config.updates.check,
+      version: VERSION,
       secrets: this.secretInfo(),
       sandbox,
       paths,
@@ -113,6 +119,9 @@ export class Settings {
       raw.mcp = { ...section("mcp"), servers };
     }
     if (patch.disabledSkills) raw.skills = { ...section("skills"), disabled: patch.disabledSkills };
+    if (patch.updateCheck !== undefined) {
+      raw.updates = { ...section("updates"), check: patch.updateCheck };
+    }
     if (patch.concurrency !== undefined) raw.concurrency = patch.concurrency;
     if (patch.notifications !== undefined) raw.notifications = patch.notifications;
     // Validated as a whole before anything is written or applied.
@@ -135,6 +144,7 @@ export class Settings {
     live.notifications = next.notifications;
     live.mcp = next.mcp;
     live.skills = next.skills;
+    live.updates = next.updates;
     if (live.concurrency !== next.concurrency) {
       live.concurrency = next.concurrency;
       this.deps.onConcurrency(next.concurrency);

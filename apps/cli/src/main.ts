@@ -1,13 +1,18 @@
 #!/usr/bin/env bun
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
+  installedApp,
+  isCompiledBinary,
   loadConfig,
   loadSecrets,
   maskSecret,
   type Stats,
   secretStatus,
   startDaemon,
+  Updater,
+  VERSION,
   warrenPaths,
 } from "@warren/daemon";
 import type { Automation, TaskEvent, TaskSummary, TriggerRecord } from "@warren/protocol";
@@ -26,7 +31,13 @@ import {
   shortId,
   yellow,
 } from "./render.ts";
-import { installService, plistPath, serviceStatus, uninstallService } from "./service.ts";
+import {
+  installService,
+  plistPath,
+  serviceLabel,
+  serviceStatus,
+  uninstallService,
+} from "./service.ts";
 
 const HELP = `warren — a local, long-running agent
 
@@ -58,6 +69,8 @@ Usage:
   warren triggers [--limit n]        Events from GitHub and what Warren decided
   warren stats                       Outcomes, cost, time and interruptions across tasks
   warren doctor                      Check the setup
+  warren update [--check]            Install the latest release (signed), or only check
+  warren --version                   Print the version
 
 Ids can be shortened to the 8 characters \`warren tasks\` shows.`;
 
@@ -112,6 +125,13 @@ async function main(argv: string[]): Promise<number> {
       return automations(rest);
     case "stats":
       return stats();
+    case "update":
+      return update(rest);
+    case "--version":
+    case "-v":
+    case "version":
+      console.log(VERSION);
+      return 0;
     case undefined:
     case "help":
     case "--help":
@@ -411,6 +431,42 @@ async function automations(args: string[]): Promise<number> {
           : `weekly ${a.schedule.days.join(",")} ${a.schedule.time}`;
     const next = a.nextRunAt ? `next ${new Date(a.nextRunAt).toLocaleString()}` : "paused";
     console.log(`${dim(a.id.slice(-8))}  ${bold(a.name)}  ${schedule} · ${next}`);
+  }
+  return 0;
+}
+
+/**
+ * Checks for a newer release and installs it: the binary this command runs from, and the desktop
+ * app if it is in Applications. Only a signed release whose files match its manifest is installed.
+ */
+async function update(args: string[]): Promise<number> {
+  const { values } = parseArgs({ args, options: { check: { type: "boolean" } } });
+  const updater = new Updater({ current: VERSION });
+  const status = await updater.check();
+  if (!status.available) {
+    console.log(`warren ${VERSION} is the latest release`);
+    return 0;
+  }
+  console.log(`warren ${status.latest} is available (installed: ${VERSION})`);
+  if (status.url) console.log(dim(status.url));
+  if (values.check) return 0;
+  if (!isCompiledBinary()) {
+    throw new CliError("this is a run from source; update it with git pull");
+  }
+  const version = await updater.updateBinary(process.execPath);
+  console.log(green(`installed warren ${version} at ${process.execPath}`));
+  const app = installedApp();
+  if (app) {
+    await updater.updateApp(app);
+    console.log(green(`updated ${app}; reopen it to use the new version`));
+  }
+  if (existsSync(plistPath())) {
+    // launchd restarts the daemon from the new binary.
+    const uid = process.getuid?.() ?? 0;
+    Bun.spawnSync(["launchctl", "kickstart", "-k", `gui/${uid}/${serviceLabel()}`]);
+    console.log("restarted the Warren service");
+  } else {
+    console.log("restart the daemon (warren daemon) to run the new version");
   }
   return 0;
 }

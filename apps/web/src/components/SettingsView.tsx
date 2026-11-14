@@ -131,6 +131,7 @@ export function SettingsView() {
       </Section>
 
       <Section title={t("settings.about")}>
+        <UpdateRows settings={data} onCheckChange={(updateCheck) => patch({ updateCheck })} />
         <Row label={t("settings.home")}>
           <code className="setting-path">{data.paths.home}</code>
         </Row>
@@ -146,6 +147,99 @@ export function SettingsView() {
         <p className="setting-note">{t("settings.restartNote")}</p>
       </Section>
     </article>
+  );
+}
+
+/**
+ * The version and updates: whether to check daily, the last check, and installing the latest
+ * signed release. After an install under launchd the daemon restarts, and the page reloads once
+ * it answers again.
+ */
+function UpdateRows(props: { settings: Settings; onCheckChange(on: boolean): void }) {
+  const { t } = useI18n();
+  const client = useQueryClient();
+  const status = useQuery({ queryKey: ["update"], queryFn: api.update });
+  const [restarting, setRestarting] = useState(false);
+  /** A version installed by a daemon that is not under launchd, so it runs after a restart. */
+  const [installed, setInstalled] = useState<string>();
+  const check = useMutation({
+    mutationFn: api.checkUpdate,
+    onSuccess: (next) => client.setQueryData(["update"], next),
+  });
+  const install = useMutation({
+    mutationFn: api.installUpdate,
+    onSuccess: ({ version, restarting: now }) => {
+      if (!now) return setInstalled(version);
+      setRestarting(true);
+      const wait = setInterval(() => {
+        api.health().then(
+          () => {
+            clearInterval(wait);
+            window.location.reload();
+          },
+          () => {},
+        );
+      }, 2000);
+    },
+  });
+  const update = status.data;
+  const error = (check.error ?? install.error)?.message ?? update?.error;
+
+  return (
+    <>
+      <Row
+        label={t("update.version")}
+        hint={
+          update?.available ? t("update.available", { version: update.latest ?? "" }) : undefined
+        }
+      >
+        <code className="setting-path">{props.settings.version}</code>
+      </Row>
+      <Row label={t("update.check")} hint={t("update.checkHint")}>
+        <Switch checked={props.settings.updateCheck} onChange={props.onCheckChange} />
+      </Row>
+      <Row
+        label={t("update.title")}
+        hint={
+          restarting
+            ? t("update.restarting")
+            : installed
+              ? t("update.installed", { version: installed })
+              : error
+                ? error
+                : update?.available
+                  ? update.canInstall
+                    ? t("update.ready", { version: update.latest ?? "" })
+                    : t("update.fromSource")
+                  : update?.unpublished
+                    ? t("update.unpublished")
+                    : update?.checkedAt
+                      ? t("update.latest")
+                      : t("update.never")
+        }
+      >
+        <button
+          type="button"
+          className="button small"
+          disabled={check.isPending || restarting}
+          onClick={() => check.mutate()}
+        >
+          {check.isPending ? t("update.checking") : t("update.checkNow")}
+        </button>
+        {update?.available && update.canInstall && !installed && (
+          <button
+            type="button"
+            className="button primary small"
+            disabled={install.isPending || restarting}
+            onClick={() => install.mutate()}
+          >
+            {install.isPending
+              ? t("update.installing")
+              : t("update.install", { version: update.latest ?? "" })}
+          </button>
+        )}
+      </Row>
+    </>
   );
 }
 

@@ -48,7 +48,7 @@ WARREN_HOME=/tmp/warren-dev bun apps/cli/src/main.ts open
 - 代码、注释、标识符用英文；文档（`docs/`）用中文。
 - 用包名导入工作区里的包（`@warren/core`），本地文件带 `.ts` 扩展名。
 - 测试放在各包的 `tests/` 里，用 `bun:test`；涉及时间的逻辑用假时钟，不用真实时间。
-- 改动了行为，就同时更新对应的设计文档（`docs/000`–`011`），让文档描述的始终是系统现在的样子。
+- 改动了行为，就同时更新对应的设计文档（`docs/000`–`012`），让文档描述的始终是系统现在的样子。
 
 ## 提交与 PR
 
@@ -56,3 +56,13 @@ WARREN_HOME=/tmp/warren-dev bun apps/cli/src/main.ts open
 - 涉及模型适配器的改动，请在共享的契约测试（`packages/model/tests/contract.test.ts`）里覆盖。
 - 涉及恢复语义的改动，请运行 `bun run chaos` 确认不变量仍然成立。
 - 安全问题请不要开公开 issue，按 [SECURITY.md](SECURITY.md) 报告。
+
+## 发布新版本（维护者）
+
+```sh
+bun scripts/version.ts 0.2.0                  # 同时修改 package.json、tauri.conf.json、Cargo.toml
+git commit -am "Release 0.2.0"
+git tag v0.2.0 && git push origin main v0.2.0
+```
+
+推送 tag 后，GitHub Actions 构建两种架构的程序和桌面应用，用仓库 secret `WARREN_RELEASE_SIGNING_KEY` 签名清单，并创建 Release。私钥从不进入仓库；签名模型和换密钥的代价见 [012](docs/012-releases-and-updates.md)。

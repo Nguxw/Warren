@@ -63,17 +63,25 @@ Most coding agents are something you watch: a terminal session editing your dire
 
 ## Quick start
 
-**Requirements:** macOS 13 or later, [Bun](https://bun.sh) 1.4+, git, and an API key for a model (OpenAI, Anthropic or any OpenAI-compatible endpoint; a local Ollama needs none).
+**Requirements:** macOS 13 or later (Apple Silicon or Intel), git, and an API key for a model (OpenAI, Anthropic or any OpenAI-compatible endpoint; a local Ollama needs none).
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Nguxw/Warren/main/install.sh | sh
+
+warren service install              # start the daemon at login (launchd); or run `warren daemon` in a terminal
+warren open                         # open the interface in your browser
+```
+
+The script downloads the single executable for your Mac from [Releases](https://github.com/Nguxw/Warren/releases), checks its hash and puts it in `~/.local/bin`. Update later with `warren update`, or with one click under Settings → About; every update verifies the release signature first (see [012](docs/012-releases-and-updates.md), in Chinese).
+
+**From source,** with [Bun](https://bun.sh) 1.4+:
 
 ```sh
 git clone https://github.com/Nguxw/Warren.git
 cd Warren
 bun install
 bun run build                       # a single executable, dist/warren, interface included
-cp dist/warren /usr/local/bin/      # or any directory on your PATH
-
-warren service install              # start the daemon at login (launchd); or run `warren daemon` in a terminal
-warren open                         # open the interface in your browser
+cp dist/warren ~/.local/bin/        # or any directory on your PATH
 ```
 
 Then add your key under **Settings → API keys** (bottom left) and hand over your first task. Or write the key file yourself:
@@ -84,7 +92,7 @@ echo 'WARREN_OPENAI_API_KEY=sk-...' >> ~/.warren/credentials.env
 chmod 600 ~/.warren/credentials.env
 ```
 
-**Desktop app (optional),** with a Rust toolchain (`brew install rustup && rustup default stable`):
+**Desktop app (optional):** download `Warren-darwin-arm64.app.zip` from Releases, unzip it and drag it to Applications. It is not notarized by Apple yet, so before the first launch run `xattr -dr com.apple.quarantine /Applications/Warren.app`, or right-click it in Finder and choose Open. Or build it yourself with a Rust toolchain (`brew install rustup && rustup default stable`):
 
 ```sh
 cd apps/desktop && bun run build
@@ -97,7 +105,7 @@ open src-tauri/target/release/bundle/macos/Warren.app
 
 - **Start page:** say what to do and press Enter. Type `/` (or press +) for skills and quick actions; under the text, choose a folder (a repository is cloned, any other folder copied), where to save, and which MCP servers the task may use. Starter cards set up common kinds of task in one click.
 - **Task page:** a status card says what is happening and what is needed from you; Activity is the full timeline with replay; Changes shows a repository task's diff; Files previews what the task wrote.
-- **Sidebar:** Automations, Skills and MCP each have a page; Settings (bottom left) holds models, API keys, defaults and approvals. Two example skills are in `examples/skills/` (a research report and a code review).
+- **Sidebar:** Automations, Skills and MCP each have a page; Settings (bottom left) holds models, API keys, defaults and approvals; About shows the version and checks for updates. Two example skills are in `examples/skills/` (a research report and a code review).
 
 Shortcuts: `/` skills and actions · `⌘N` new task · `⌘K` search · `⌘,` settings · `↩` send · `⇧↩` new line.
 
@@ -114,6 +122,7 @@ warren save <id> [<dir>]        # save a task's files
 warren delete <id> --yes        # delete a task and its workspace
 warren automations [run <id>]   # list automations, or run one now
 warren stats                    # success rate, cost, time, interruptions, cache hit rate
+warren update [--check]         # check for and install a new version (signature verified)
 ```
 
 ## How it works
@@ -130,7 +139,7 @@ protocol    event format · conversation items · Grant · API contract         
 - **The log is the only source of truth.** Each step reads state, acts, and appends events. `tool.started` reaches the disk before a tool runs (`synchronous = FULL`), so after a crash Warren knows which actions may have happened: reads and workspace writes run again; external actions are reported to the model as "outcome unknown" to check before retrying.
 - **Boundaries by mechanism, not by prompt.** What a task may touch (workspace, network, privileged tools, budget) is fixed in its Grant when it is created; the sandbox and the privileged tools enforce it.
 
-The design documents in [`docs/`](docs) (in Chinese) are meant to be read in order, from [000 Philosophy](docs/000-philosophy.md) to [011 Skills and MCP](docs/011-skills-and-mcp.md).
+The design documents in [`docs/`](docs) (in Chinese) are meant to be read in order, from [000 Philosophy](docs/000-philosophy.md) to [012 Releases and updates](docs/012-releases-and-updates.md).
 
 ## Evaluation
 

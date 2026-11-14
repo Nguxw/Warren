@@ -25,6 +25,8 @@ import { modelResolver, providerClients, secretStatus } from "./runtime/models.t
 import { macNotify, type Notify, taskNotifications } from "./runtime/notifications.ts";
 import { type Logger, Scheduler, stderrLogger } from "./runtime/scheduler.ts";
 import { saveResults } from "./runtime/tasks.ts";
+import { UpdateService } from "./runtime/update-service.ts";
+import type { ReleaseSource } from "./runtime/updates.ts";
 import { branchName, Workspaces } from "./runtime/workspace.ts";
 import { createApp } from "./server/app.ts";
 import { Notifier } from "./server/notifier.ts";
@@ -51,6 +53,8 @@ export interface DaemonOptions {
   notify?: Notify;
   /** How often automations are checked for due runs; tests call `automations.tick()` instead. */
   automationIntervalMs?: number;
+  /** Test seam: where releases come from and the key they are checked with. */
+  updates?: { source: ReleaseSource; publicKey: string; compiled?: boolean };
 }
 
 export interface RunningDaemon {
@@ -201,6 +205,14 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     }
   }
 
+  const updates = new UpdateService({
+    enabled: () => config.updates.check,
+    logger,
+    ...options.updates,
+    // A graceful stop: the command that runs the daemon exits on SIGTERM, and launchd restarts it.
+    restart: () => process.kill(process.pid, "SIGTERM"),
+  });
+
   const token = loadToken(paths.token);
   const app = createApp({
     store,
@@ -221,6 +233,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     workspaceOf: (id) => workspaces.pathOf(id),
     skills,
     mcp,
+    updates,
     deleteTask: async (id) => {
       await scheduler.release(id);
       db.transaction(() => {
@@ -280,6 +293,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
 
   scheduler.resumeAll();
   automations.start(options.automationIntervalMs);
+  updates.start();
   await github?.start();
   logger.info("daemon started", { port: info.port, home: paths.home });
 
@@ -295,6 +309,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     stop() {
       stopping ??= (async () => {
         automations.stop();
+        updates.stop();
         await github?.stop();
         await mcp.close();
         await scheduler.stop();

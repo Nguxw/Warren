@@ -131,7 +131,8 @@ Web 界面 ───┼─HTTP + SSE（127.0.0.1，带 token）──▶ warren 
 | `POST /pick-folder` | 用系统的文件夹选择框选一个文件夹（macOS） |
 | `GET /triggers` | 连接器收到的事件和路由决定 |
 | `GET /stats` | 汇总指标（见 [008](008-context-and-metrics.md)） |
-| `GET /health` | 健康检查，以及配置中的模型需要的密钥是否已加载（只给名字和是否加载，不给值） |
+| `GET /update`、`POST /update/check`、`POST /update/install` | 最近一次检查结果、立即检查、安装最新版本（见 [012](012-releases-and-updates.md)） |
+| `GET /health` | 健康检查、当前版本号，以及配置中的模型需要的密钥是否已加载（只给名字和是否加载，不给值） |
 
 - 违反日志不变量的请求（比如给已结束的任务发消息）返回 409。
 - 请求格式错误、文件夹不可用、模型角色不存在返回 400，并说明原因。
