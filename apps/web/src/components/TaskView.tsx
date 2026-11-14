@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { foldEvents, statusOf } from "@warren/core";
-import { useMemo, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { api, type TaskView as Task } from "../api.ts";
 import { useI18n, useNow } from "../context.tsx";
 import { formatDuration, stepLabel } from "../i18n.ts";
@@ -458,7 +458,10 @@ function AttentionForm(props: { taskId: string; item: Task["attention"][number] 
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) answer();
+            if (sends(e)) {
+              e.preventDefault();
+              answer();
+            }
           }}
           placeholder={approval ? t("card.denyNote") : t("card.answerPlaceholder")}
         />
@@ -499,6 +502,11 @@ function AttentionForm(props: { taskId: string; item: Task["attention"][number] 
   );
 }
 
+/** Enter sends; Shift+Enter is a new line, and Enter that confirms an input method's word is not a send. */
+function sends(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
+  return event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing;
+}
+
 function Composer({ task }: { task: Task }) {
   const { t } = useI18n();
   const [text, setText] = useState("");
@@ -523,7 +531,10 @@ function Composer({ task }: { task: Task }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+          if (sends(e)) {
+            e.preventDefault();
+            submit();
+          }
         }}
         placeholder={task.status === "idle" ? t("composer.reply") : t("composer.add")}
       />

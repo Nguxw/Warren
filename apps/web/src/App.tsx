@@ -2,13 +2,13 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tan
 import type { TaskEvent } from "@warren/protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, subscribe, Unauthorized } from "./api.ts";
-import { NewTaskDialog } from "./components/NewTaskDialog.tsx";
+import { Home } from "./components/Home.tsx";
 import { SettingsView } from "./components/SettingsView.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
 import { TaskView } from "./components/TaskView.tsx";
 import { TriggersView } from "./components/TriggersView.tsx";
 import { I18nProvider, useI18n } from "./context.tsx";
-import { Logo, Plus } from "./icons.tsx";
+import { Logo } from "./icons.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,17 +33,16 @@ function Shell() {
   const [selected, setSelected] = useState<string | null>(() =>
     new URLSearchParams(window.location.search).get("task"),
   );
-  const [creating, setCreating] = useState(false);
   const [page, setPage] = useState<"tasks" | "triggers" | "settings">("tasks");
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const tasks = useQuery({ queryKey: ["tasks"], queryFn: api.tasks });
   const health = useQuery({ queryKey: ["health"], queryFn: api.health, staleTime: 60_000 });
   useLiveUpdates(!tasks.isError);
 
   const select = useCallback((id: string | null) => {
     setSelected(id);
-    setCreating(false);
     setPage("tasks");
     history.replaceState(null, "", id ? `?task=${id}` : window.location.pathname);
   }, []);
@@ -52,14 +51,18 @@ function Shell() {
     setSelected(null);
     history.replaceState(null, "", window.location.pathname);
   }, []);
-  const closeDialog = useCallback(() => setCreating(false), []);
+  // A new task starts on the start page, whose text box takes the focus.
+  const startNew = useCallback(() => {
+    select(null);
+    requestAnimationFrame(() => composerRef.current?.focus());
+  }, [select]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return;
       if (event.key === "n") {
         event.preventDefault();
-        setCreating(true);
+        startNew();
       } else if (event.key === "k") {
         event.preventDefault();
         searchRef.current?.focus();
@@ -70,7 +73,7 @@ function Shell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, startNew]);
 
   if (tasks.error instanceof Unauthorized) return <SignIn />;
 
@@ -86,7 +89,7 @@ function Shell() {
         sandbox={health.data?.sandbox}
         onQuery={setQuery}
         onSelect={select}
-        onNew={() => setCreating(true)}
+        onNew={startNew}
         page={page}
         onTriggers={() => open("triggers")}
         onSettings={() => open("settings")}
@@ -99,16 +102,9 @@ function Shell() {
         ) : selected ? (
           <TaskView key={selected} id={selected} />
         ) : (
-          <Empty onNew={() => setCreating(true)} hasTasks={(tasks.data?.length ?? 0) > 0} />
+          <Home tasks={tasks.data ?? []} inputRef={composerRef} onCreated={(id) => select(id)} />
         )}
       </main>
-      {creating && (
-        <NewTaskDialog
-          tasks={tasks.data ?? []}
-          onClose={closeDialog}
-          onCreated={(id) => select(id)}
-        />
-      )}
     </div>
   );
 }
@@ -162,24 +158,6 @@ function SignIn() {
       <h1>{t("signin.title")}</h1>
       <p className="muted">{t("signin.body")}</p>
       <pre className="command">warren open</pre>
-    </div>
-  );
-}
-
-function Empty({ onNew, hasTasks }: { onNew(): void; hasTasks: boolean }) {
-  const { t } = useI18n();
-  return (
-    <div className="centered">
-      <span className="hero-mark">
-        <Logo size={56} />
-      </span>
-      <h1>{t("empty.title")}</h1>
-      <p className="muted">{hasTasks ? t("empty.select") : t("empty.body")}</p>
-      <button type="button" className="button primary large" onClick={onNew}>
-        <Plus size={16} />
-        {t("app.newTask")}
-      </button>
-      <p className="shortcuts">{t("empty.shortcuts")}</p>
     </div>
   );
 }
