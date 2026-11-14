@@ -22,7 +22,7 @@ trap 'rm -rf "$tmp"' EXIT
 base="https://github.com/$repo/releases/latest/download"
 archive="warren-darwin-$arch.tar.gz"
 
-echo "Downloading $archive…"
+echo "Downloading ${archive}..."
 curl -fsSL "$base/$archive" -o "$tmp/$archive"
 curl -fsSL "$base/SHA256SUMS" -o "$tmp/SHA256SUMS"
 (cd "$tmp" && grep " $archive\$" SHA256SUMS | shasum -a 256 -c - >/dev/null) || {

@@ -5,42 +5,52 @@
 <h1 align="center">Warren</h1>
 
 <p align="center">
-  在你自己电脑上常驻的长程 Agent：把调研、写代码、整理文件交给它，<br>
-  它在后台的独立工作区里做完，只在有结果或需要你拿主意时找你。
+  在你自己的 Mac 上常驻运行的 Agent。任务交给它后在后台执行，<br>
+  可以持续几小时；进程崩溃或电脑休眠后，从中断的地方继续。
 </p>
 
 <p align="center">
   <a href="https://github.com/Nguxw/Warren/actions/workflows/ci.yml"><img src="https://github.com/Nguxw/Warren/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Nguxw/Warren/releases"><img src="https://img.shields.io/github/v/release/Nguxw/Warren" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg" alt="macOS">
-  <img src="https://img.shields.io/badge/runtime-Bun-black.svg" alt="Bun">
 </p>
 
 <p align="center">中文 · <a href="README.en.md">English</a></p>
+
+Warren 由一个守护进程和三个前端（Web 界面、桌面应用、命令行）组成。每个任务有自己的工作区：git 仓库会被克隆，普通文件夹会被复制，模型执行的命令运行在 macOS 沙箱里。结果以分支、Pull Request 或文件的形式交回，你的原目录不会被改动。
+
+Agent 的执行部分（循环、崩溃恢复、上下文压缩、工具和沙箱）都在本仓库里实现，没有依赖其他 Agent 框架。调用模型只用各家官方的 SDK。
+
+## 技术栈
+
+| 部分 | 技术 |
+|---|---|
+| 语言与运行时 | TypeScript，[Bun](https://bun.sh) 1.4（运行、测试、打包，并编译成单文件程序） |
+| 存储 | SQLite（`bun:sqlite`，WAL，`synchronous = FULL`），每个任务一份只追加的事件日志 |
+| 守护进程 | [Hono](https://hono.dev)（HTTP + SSE，只监听 127.0.0.1），launchd 常驻 |
+| 模型 | OpenAI SDK（Responses API 和兼容 Chat Completions 的接口）、Anthropic SDK |
+| 扩展 | [MCP](https://modelcontextprotocol.io) TypeScript SDK（stdio、Streamable HTTP），Agent Skills 格式的技能 |
+| 沙箱 | macOS Seatbelt（`sandbox-exec`） |
+| 界面 | React 19、TanStack Query、react-markdown，由 Bun 的 HTML import 打包，中英双语 |
+| 桌面应用 | [Tauri](https://tauri.app) 2 |
+| 数据校验 | zod：事件、API 和配置共用同一套定义 |
+| 工程 | Bun workspaces，tsc 类型检查，Biome，`bun:test`，GitHub Actions，Ed25519 签名的发行版 |
 
 <p align="center">
   <img src="docs/images/task.jpg" width="860" alt="一个调研任务的结果：完成总结和报告预览">
 </p>
 
-## 为什么是 Warren
+## 能做什么
 
-大多数编码 Agent 的用法是"你看着它干活"：开一个终端会话，盯着它一步步改你的目录。Warren 换了一个角度：**它替你干活，你去忙别的。**
+- 调研：联网搜集资料，写成带引用的报告，在界面里直接预览。
+- 改代码：在仓库的克隆里修改、运行测试、提交，把提交作为 `warren/<id>` 分支推回你的仓库，或者开一个草稿 PR。
+- 处理文件：整理、转换、汇总一个文件夹里的内容，完成后保存到你指定的位置。
+- 定时运行：比如每个工作日 18:30 汇总 GitHub 热榜。电脑休眠时错过的运行，醒来后补跑一次。
+- 接收 GitHub 上的工作：在 issue 里 @warren，它的提问和结论会回复到 issue。
+- 用技能和 MCP 扩展：技能告诉它某类工作怎么做；MCP 服务器给它外部工具。只读的 MCP 工具直接调用，其他工具默认需要你批准。
 
-- 交代一件事就可以走开。任务在后台跑几分钟到几小时，电脑休眠、进程崩溃、重启都不会丢进度。
-- 它不碰你的原目录：仓库会克隆一份，普通文件夹会复制一份，结果以分支、PR 或"保存到…"交回，由你决定要不要。
-- 它只在三种时候找你：有问题要问、有动作要批准、结果可以用了。
-
-## 特性
-
-- **常驻与可恢复：** 每个任务是一份只追加的事件日志（SQLite）。任务状态由日志折叠而来，崩溃后从日志接着执行；对外动作（推送、开 PR）被打断后不会盲目重做。在 200 个任务、519 次 `kill -9` 的混沌测试中，外部动作无一重复执行。
-- **沙箱：** 模型执行的命令跑在 macOS Seatbelt 沙箱里：只能写自己的工作区，读不到 `~/.ssh`、钥匙串和 Warren 自己的密钥，网络按任务开关。需要凭证的动作由守护进程按固定方式代为执行，并可要求你审批。
-- **多模型：** 内部使用与提供方无关的对话格式，内置 OpenAI（Responses）、OpenAI 兼容接口（DeepSeek、Qwen、Ollama、vLLM 等）和 Anthropic 三个适配器。按角色（标准、深度、快速）配置模型，长任务自动压缩上下文。
-- **产物：** 调研报告、数据文件在界面里直接预览（Markdown、表格、图片），一键在访达中打开，或保存到你指定的文件夹。
-- **技能与 MCP：** 用 Agent Skills 格式的技能教它做某类工作（按需加载，不占上下文）；接上 MCP 服务器使用外部工具，只读工具直接调用，其他工具默认需要你批准。
-- **自动化：** 按时间表自动开始的任务，比如"每天 9:00 调研 GitHub 热榜，报告保存到桌面"。休眠时错过的运行，醒来后只补一次。
-- **GitHub：** 在 issue 里 @warren 派活，提问和结论回复到 issue；CI 失败这类推断出来的工作先"观察"，确认判断可靠再自动开工。
-- **界面：** 中英双语的 Web 界面和 macOS 桌面应用（Tauri），实时时间线、轨迹回放、系统通知，以及功能完整的命令行。
-- **只用自己的凭证：** 数据都在 `~/.warren/`，使用你单独配置的 API key，从不读写 Claude Code、Codex 或 `gh` 的配置和登录态。
+模型可以混用：OpenAI、Anthropic，以及任何 OpenAI 兼容接口（DeepSeek、Qwen、Ollama、vLLM 等）。按"标准、深度、快速"三个角色分别配置。
 
 <table>
   <tr>
@@ -48,7 +58,7 @@
     <td><img src="docs/images/slash.jpg" alt="输入 / 弹出技能和操作菜单"></td>
   </tr>
   <tr>
-    <td align="center">交代一件事，回车就开始</td>
+    <td align="center">起始页：写下要做的事，回车开始</td>
     <td align="center">输入 <code>/</code> 选用技能、切换模型和联网</td>
   </tr>
   <tr>
@@ -56,35 +66,25 @@
     <td><img src="docs/images/mcp.jpg" alt="MCP 服务器页"></td>
   </tr>
   <tr>
-    <td align="center">技能：教它做某类工作</td>
-    <td align="center">MCP：接上外部工具</td>
+    <td align="center">技能</td>
+    <td align="center">MCP 服务器</td>
   </tr>
 </table>
 
-## 快速开始
+## 安装
 
-**环境：** macOS 13 或更高（Apple Silicon 或 Intel）、git。还需要一个模型的 API key（OpenAI、Anthropic 或任意 OpenAI 兼容接口；本地的 Ollama 不需要 key）。
+需要 macOS 13 或更高版本、git，以及一个模型的 API key（本地的 Ollama 不需要）。
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Nguxw/Warren/main/install.sh | sh
 
-warren service install              # 登录时自动启动守护进程（launchd）；也可以在终端里运行 warren daemon
-warren open                         # 在浏览器里打开界面
+warren service install     # 登录时自动启动守护进程（launchd）；也可以在终端里运行 warren daemon
+warren open                # 在浏览器里打开界面
 ```
 
-安装脚本从 [Releases](https://github.com/Nguxw/Warren/releases) 下载适合这台 Mac 的单文件程序，校验哈希后放进 `~/.local/bin`。之后用 `warren update` 更新，或者在设置页"关于"里一键安装；每次更新都会先校验发布签名（见 [012](docs/012-releases-and-updates.md)）。
+安装脚本从 [Releases](https://github.com/Nguxw/Warren/releases) 下载适合这台 Mac（Apple Silicon 或 Intel）的程序，校验哈希后放进 `~/.local/bin`。以后用 `warren update` 或设置页的"关于"更新。每次更新都会先验证发布签名，见 [012](docs/012-releases-and-updates.md)。
 
-**从源码构建：** 需要 [Bun](https://bun.sh) 1.4+。
-
-```sh
-git clone https://github.com/Nguxw/Warren.git
-cd Warren
-bun install
-bun run build                       # 编译出单文件程序 dist/warren（包含界面）
-cp dist/warren ~/.local/bin/        # 或者 PATH 中的任意目录
-```
-
-打开界面后，在左下角的 **设置 → API 密钥** 里填入 key，就可以在起始页交代第一件事了。也可以直接写入密钥文件：
+打开界面后，在左下角 **设置 → API 密钥** 里填入 key。也可以直接写入密钥文件：
 
 ```sh
 mkdir -p ~/.warren && chmod 700 ~/.warren
@@ -92,40 +92,31 @@ echo 'WARREN_OPENAI_API_KEY=sk-...' >> ~/.warren/credentials.env
 chmod 600 ~/.warren/credentials.env
 ```
 
-**桌面应用（可选）：** 从 Releases 下载 `Warren-darwin-arm64.app.zip`，解压后拖进"应用程序"。应用还没有经过 Apple 公证，第一次打开前执行 `xattr -dr com.apple.quarantine /Applications/Warren.app`，或者在访达里右键 →"打开"。也可以自己构建，需要 Rust 工具链（`brew install rustup && rustup default stable`）：
+`warren doctor` 会检查配置、密钥和沙箱。
+
+**桌面应用：** 从 Releases 下载 `Warren-darwin-arm64.app.zip`，解压后拖进"应用程序"。应用还没有经过 Apple 公证，第一次打开前需要执行 `xattr -dr com.apple.quarantine /Applications/Warren.app`，或者在访达里右键选"打开"。
+
+**从源码构建：** 需要 Bun 1.4+；构建桌面应用还需要 Rust 工具链。
 
 ```sh
-cd apps/desktop && bun run build
-open src-tauri/target/release/bundle/macos/Warren.app
+git clone https://github.com/Nguxw/Warren.git && cd Warren
+bun install
+bun run build                        # 编译出 dist/warren，界面已打包在里面
+cp dist/warren ~/.local/bin/
+cd apps/desktop && bun run build     # 可选：桌面应用
 ```
-
-`warren doctor` 会检查配置、密钥和沙箱是否就绪。
 
 ## 使用
 
 ### 界面
 
-- **起始页：** 写下要做的事，回车开始。
-  - 输入 `/` 或点"+"：选用技能、切换模型、开关联网，可以打字筛选。
-  - 输入框下方：工作文件夹（git 仓库会克隆，其他文件夹会复制）、保存产物的位置、这个任务能用的 MCP 服务器；不选就用默认值。
-  - 输入框空着时有三张起步卡片（调研、修测试、整理文件夹），点一下会填好文字并设好对应的选项。
-- **任务页：**
-  - 状态卡显示现在怎样、需要你做什么；
-  - "动态"是完整的时间线，可以回放到任意一步；
-  - "改动"显示仓库任务的 diff；
-  - "产物"预览任务写出的文件。
-- **自动化、技能、MCP：** 都在侧栏上方，各有一个页面。
-  - 自动化：按每天、每周或每隔几小时运行；在已完成的任务上点"定期运行…"可以直接把它变成自动化。
-  - 技能：添加 Agent Skills 格式的文件夹，仓库里的 `examples/skills/` 有两个例子（调研报告、代码审查）。
-  - MCP：添加本地命令或远程地址，测试连接，按服务器设置是否需要审批。详见 [011](docs/011-skills-and-mcp.md)。
+在起始页写下要做的事，按回车。输入框下方可以选择工作文件夹、产物保存位置、模型、是否联网，以及这个任务能用的 MCP 服务器；不选就用默认值。输入 `/` 或点 "+" 可以选用技能。
 
-- **设置：** 语言、外观、模型、API 密钥、是否默认联网、并发数、哪些动作需要审批；"关于"里显示版本并检查更新。
+任务页上方的状态卡说明任务现在的状态，以及是否需要你回答问题或批准动作。下面有三个标签页："动态"是完整的时间线，可以回放到任意一步；"改动"显示仓库任务的 diff；"产物"预览任务写出的文件。
 
-<p align="center">
-  <img src="docs/images/automations.jpg" width="720" alt="自动化页">
-</p>
+侧栏有自动化、技能和 MCP 三个页面。左下角的设置里有语言、外观、模型、API 密钥、默认选项、审批规则和版本更新。
 
-快捷键：`/` 技能和操作 · `⌘N` 新任务 · `⌘K` 搜索 · `⌘,` 设置 · `↩` 发送 · `⇧↩` 换行。
+快捷键：`/` 技能和操作，`⌘N` 新任务，`⌘K` 搜索，`⌘,` 设置，`↩` 发送，`⇧↩` 换行。
 
 ### 命令行
 
@@ -133,27 +124,24 @@ open src-tauri/target/release/bundle/macos/Warren.app
 warren run "调研本周 Bun 的更新，写成摘要"                     # 新建任务并跟随输出
 warren run --repo ~/code/app "修复失败的日期测试，提交并发布分支"
 warren run --network --repo ~/Documents/资料 --output ~/Desktop "整理成一份摘要"
-warren tasks                     # 进行中的任务（--all 包括已结束的）
+warren tasks [--all]             # 进行中的任务（--all 包括已结束的）
 warren follow <id>               # 跟随一个任务
 warren answer <id> "<回答>"      # 回答任务的问题
-warren approve <id>              # 批准等待中的动作（如开 PR）；warren deny <id> "<原因>" 拒绝
+warren approve <id>              # 批准等待中的动作；warren deny <id> "<原因>" 拒绝
 warren save <id> [<目录>]        # 把产物保存到目录
 warren delete <id> --yes         # 删除任务及其工作区
 warren automations [run <id>]    # 列出自动化，或立即运行一个
-warren triggers                  # GitHub 事件及 Warren 的决定
 warren stats                     # 成功率、费用、用时、打扰次数、缓存命中率
-warren update [--check]          # 检查并安装新版本（校验签名）
+warren update [--check]          # 检查并安装新版本
 ```
 
 `<id>` 可以用列表里显示的 8 位短 id。
 
-### 仓库任务的结果
-
-任务在 `~/.warren/tasks/<id>/workspace` 里的独立克隆上工作，完成后把提交发布回你的仓库，作为 `warren/<短 id>` 分支，你的其他分支不会被改动。配置 `WARREN_GITHUB_TOKEN` 后，它还可以开草稿 PR（默认需要你批准）。建议使用只授权目标仓库的 fine-grained token。
+仓库任务在 `~/.warren/tasks/<id>/workspace` 的克隆上工作，完成后把提交推回你的仓库，分支名是 `warren/<短 id>`，其他分支不受影响。配置 `WARREN_GITHUB_TOKEN` 后它可以开草稿 PR，默认需要你批准。建议用只授权目标仓库的 fine-grained token。
 
 ## 配置
 
-大部分设置可以在界面的设置页里修改，并立即生效。它们保存在 `~/.warren/config.json`（设置 `WARREN_HOME` 可以换目录）：
+大部分设置可以在界面里修改，立即生效。设置保存在 `~/.warren/config.json`，用 `WARREN_HOME` 可以换目录：
 
 ```json
 {
@@ -173,102 +161,72 @@ warren update [--check]          # 检查并安装新版本（校验签名）
 }
 ```
 
-| 角色 | 界面名称 | 用途 |
-|---|---|---|
-| `main` | 标准 | 默认 |
-| `hard` | 深度 | 更难的任务 |
-| `cheap` | 快速 | 简单任务，以及长任务的上下文压缩 |
+`main`（标准）是默认角色；`hard`（深度）用于更难的任务；`cheap`（快速）用于简单任务和长任务的上下文压缩。
 
-密钥只从环境变量和 `~/.warren/credentials.env`（权限 0600）读取，名字都以 `WARREN_` 开头，不与其他工具共用 `OPENAI_API_KEY` 这类变量。密钥不会写入事件日志、数据库或任务的子进程。GitHub 连接器的配置见 [007](docs/007-connectors.md)。
+密钥只从环境变量和 `~/.warren/credentials.env`（权限 0600）读取，名字都以 `WARREN_` 开头。密钥不会写进事件日志、数据库，也不会传给任务的子进程。Warren 不读写 Claude Code、Codex 或 `gh` 的配置和登录状态。GitHub 连接器的配置见 [007](docs/007-connectors.md)。
 
 ## 工作原理
 
-```
-apps        web（界面）· desktop（Tauri 外壳）· cli
-                       │  HTTP + SSE（127.0.0.1，带 token）
-daemon      API · 调度器 · 自动化 · 连接器接入 · Store（SQLite，唯一写入者）
-core        状态折叠 · Agent 循环 · 上下文压缩 · 路由 · 时间表        （纯逻辑，无 IO）
-adapters    model/（OpenAI · 兼容接口 · Anthropic）  tools/ + 沙箱  connectors/（GitHub）
-protocol    事件格式 · 对话格式 · Grant · API 契约                    （所有包共享）
-```
+一个在个人电脑上长时间运行的 Agent 要面对四个问题，Warren 的主要设计都由此而来：
 
-- **日志是唯一事实来源。** 每一步都是"读状态、执行、追加事件"。`tool.started` 在工具执行前落盘（`synchronous = FULL`），所以崩溃后能分辨哪些动作可能已经发生：读写类工具重跑，对外动作标记为"结果未知"，交给模型先核对再决定。
-- **边界靠机制，不靠提示词。** 任务能碰什么（工作区、网络、特权工具、预算）在创建时写进 Grant，之后不可变；沙箱和特权工具保证模型越不过去。
-- **依赖方向单一：** `protocol` ← `core` ← 适配器 ← `apps/*`，只有守护进程负责组装。
-
-| 目录 | 内容 |
+| 问题 | 做法 |
 |---|---|
-| `packages/protocol` | 事件格式、内部对话格式、Grant、自动化、API 契约（zod） |
-| `packages/core` | 状态折叠、Agent 循环、上下文压缩、路由、时间表；接口定义和测试替身 |
-| `packages/model` | 模型适配器：OpenAI Responses、OpenAI 兼容、Anthropic |
-| `packages/tools` | 内置工具、Seatbelt 沙箱、特权工具（发布分支、开 PR）、技能 |
-| `packages/connectors` | GitHub：webhook、补漏轮询、回复 |
-| `packages/mcp` | MCP 客户端：连接 stdio 和 HTTP 服务器，把它们的工具交给循环 |
-| `apps/daemon` | 守护进程：Store、调度器、工作区、产物、自动化、HTTP API |
-| `apps/web` | Web 界面（React，由 Bun 打包，中英双语） |
-| `apps/desktop` | 桌面外壳（Tauri v2）：原生窗口和菜单栏图标 |
-| `apps/cli` | `warren` 命令和 launchd 服务 |
-| `evals` | 混沌测试、SWE-bench 子集评测 |
+| 任务比进程活得久，中途会崩溃、休眠、重启 | 每个任务的状态都写在 SQLite 的事件日志里，进程本身不保存状态。每一步先从日志折叠出当前状态，执行后再追加事件。恢复就是重新读日志 |
+| 恢复时可能重复执行对外动作 | 工具开始执行前，`tool.started` 事件先写进磁盘。崩溃后，读文件、改工作区这类动作直接重跑；推送、开 PR 这类对外动作标为"结果未知"，由模型先核对远端状态再决定 |
+| 任务比模型的上下文窗口长 | 发给模型的上下文是日志的一个视图。快满时用 `cheap` 模型压缩早期内容，工具调用和它的结果不会被拆开 |
+| 在你的真实机器上运行，没人盯着 | 任务能访问什么（工作区、网络、特权工具、预算）在创建时写进 Grant，之后不能更改。Seatbelt 沙箱只允许写工作区，读不到 `~/.ssh`、钥匙串和 Warren 的密钥。推送、开 PR 这类需要凭证的动作由守护进程按固定方式代为执行，可以要求审批 |
 
-## 安全
+```
+apps        web（界面）· desktop（Tauri）· cli
+                       │  HTTP + SSE（127.0.0.1，带 token）
+daemon      API · 调度器 · 自动化 · 连接器 · Store（SQLite，唯一写入者）
+core        状态折叠 · Agent 循环 · 上下文压缩 · 路由 · 时间表      （纯逻辑，无 IO）
+adapters    model/  tools/ + 沙箱  connectors/  mcp/
+protocol    事件格式 · 对话格式 · Grant · API 契约                  （所有包共享）
+```
 
-Warren 假设模型读到的任何内容都可能是提示词注入，所以边界全部由机制保证：
+依赖只朝一个方向：`protocol` ← `core` ← 适配器 ← `apps/*`。`core` 不做 IO，所以循环和恢复逻辑可以在测试里用假模型、假时钟逐步验证。
 
-- **沙箱：** 写入只限工作区，凭证目录不可读，网络按任务开关；
-- **特权工具由守护进程代为执行：** 从不在工作区里运行 git，分支名固定且只能快进；
-- **密钥只写不读；**
-- **API 只接受本机的 Host 头。**
-
-已知局限（例如读取是黑名单、Linux 上没有沙箱）写在 [005 安全边界](docs/005-security.md)。发现安全问题请按 [SECURITY.md](SECURITY.md) 报告。
+安全边界和已知局限（例如读取限制是黑名单、Linux 上没有沙箱）见 [005](docs/005-security.md)。发现安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
 
 ## 评测
 
 | 评测 | 结果 |
 |---|---|
-| [SWE-bench Verified](docs/009-swebench.md) 随机 28 个实例，官方 harness 打分 | 解决 23 个（82%）；每个实例中位数 $0.16、2.1 分钟（`gpt-6.1-terra`） |
-| [混沌测试](docs/004-testing.md)：在随机时刻 `kill -9` 真实的守护进程 | 200 个任务、519 次强杀，不变量违反 0 次 |
-| [崩溃模拟](docs/004-testing.md)：在每个持久化步骤之后崩溃（穷举加 500 组随机） | 外部动作恰好执行一次 |
+| [SWE-bench Verified](docs/009-swebench.md)：随机抽取 28 个实例，用官方 harness 打分 | 解决 23 个（82%）；每个实例的中位数为 $0.16、2.1 分钟（`gpt-6.1-terra`） |
+| [混沌测试](docs/004-testing.md)：在随机时刻 `kill -9` 正在运行的守护进程 | 200 个任务、519 次强杀，不变量违反 0 次 |
+| [崩溃模拟](docs/004-testing.md)：在每个持久化步骤之后崩溃（穷举，加 500 组随机） | 对外动作都恰好执行一次 |
 
 ## 开发
 
 ```sh
 bun install
-bun run check                               # 类型检查 + lint + 全部测试（和 CI 一致）
-bun test <路径>                              # 只跑部分测试
-WARREN_LIVE=1 bun test packages/model       # 加上真实 API 测试（花费不到一美分）
-bun run chaos 200                           # 混沌测试
-bun run format                              # 自动格式化
-WARREN_HOME=/tmp/warren-dev bun apps/cli/src/main.ts daemon   # 从源码运行一个独立的开发实例
+bun run check                                  # 类型检查 + lint + 全部测试，和 CI 相同
+bun test <路径>                                 # 只跑部分测试
+WARREN_LIVE=1 bun test packages/model          # 加上调用真实 API 的测试
+bun run chaos 200                              # 混沌测试
+WARREN_HOME=/tmp/warren-dev bun apps/cli/src/main.ts daemon   # 从源码运行一个独立实例
 ```
 
-开发实例要在它的 `config.json` 里换一个 `server.port`，避免和正在用的实例冲突。贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，里面列出了几条改动代价很高、必须遵守的规则，例如事件格式只升版本、不修改，`tool.started` 必须先于执行落盘。
+独立实例需要在它的 `config.json` 里换一个 `server.port`。
+
+| 目录 | 内容 |
+|---|---|
+| `packages/protocol` | 事件格式、对话格式、Grant、自动化、API 契约 |
+| `packages/core` | 状态折叠、Agent 循环、上下文压缩、路由、时间表，以及测试替身 |
+| `packages/model` | 模型适配器：OpenAI Responses、OpenAI 兼容、Anthropic |
+| `packages/tools` | 内置工具、Seatbelt 沙箱、特权工具、技能 |
+| `packages/mcp` | MCP 客户端 |
+| `packages/connectors` | GitHub 连接器：webhook、补漏轮询、回复 |
+| `apps/daemon` | 守护进程：存储、调度、工作区、自动化、更新、HTTP API |
+| `apps/web`、`apps/desktop`、`apps/cli` | Web 界面、桌面外壳、`warren` 命令 |
+| `evals` | 混沌测试、SWE-bench 子集 |
+
+提交前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，其中列出了几条一旦违反就会影响已有用户数据或安全的规则。
 
 ## 文档
 
-设计文档按编号阅读，每篇只依赖前面的内容：
-
-| 文档 | 内容 |
-|---|---|
-| [000 理念](docs/000-philosophy.md) | 本地长程 Agent 的约束、原则和核心概念 |
-| [001 事件日志](docs/001-event-log.md) | 事件格式、不变量、版本演进、存储 |
-| [002 循环与恢复](docs/002-loop-and-recovery.md) | 由状态推出下一步；崩溃、休眠后的恢复 |
-| [003 运行时](docs/003-runtime.md) | 守护进程、调度、工作区、模型适配器、工具、API |
-| [004 测试与验证](docs/004-testing.md) | 崩溃模拟、混沌测试、适配器契约测试 |
-| [005 安全边界](docs/005-security.md) | 威胁模型、沙箱、特权工具与审批 |
-| [006 界面与常驻](docs/006-interface.md) | Web 界面、产物、设置、通知、launchd、桌面外壳 |
-| [007 连接器：GitHub](docs/007-connectors.md) | webhook 与补漏轮询、路由规则、结果回到 issue |
-| [008 上下文与指标](docs/008-context-and-metrics.md) | 长任务的上下文压缩、`warren stats` |
-| [009 基准评测](docs/009-swebench.md) | SWE-bench Verified 子集的方法、结果与复现 |
-| [010 自动化](docs/010-automations.md) | 按时间表开始的任务 |
-| [011 技能与 MCP](docs/011-skills-and-mcp.md) | 技能的格式与加载；MCP 服务器的连接、信任和审批 |
-| [012 发行版与更新](docs/012-releases-and-updates.md) | 发布产物、签名与信任、安装脚本、自动更新 |
-
-## 路线图
-
-- Linux 沙箱（bubblewrap），让 Linux 上的任务也运行在受限环境里
-- 按域名的网络白名单，替代"全开或全关"
-- 更多工作来源：邮件、日历、Slack 等连接器
-- 经过 Apple 公证的桌面应用，以及 Intel 版桌面应用
+[`docs/`](docs) 里是中文设计文档，按编号阅读，从 [000 理念](docs/000-philosophy.md) 开始。每篇的主题见 [文档目录](docs/README.md)。
 
 ## 许可
 
