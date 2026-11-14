@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { foldEvents, statusOf } from "@warren/core";
 import { useMemo, useState } from "react";
 import { api, type TaskView as Task } from "../api.ts";
@@ -7,9 +7,11 @@ import { formatDuration, stepLabel } from "../i18n.ts";
 import {
   ArrowUp,
   Branch,
+  Check,
   Clock,
   Coin,
   Cpu,
+  Download,
   Folder,
   Globe,
   History,
@@ -143,6 +145,11 @@ export function TaskView({ id }: { id: string }) {
         ) : tab === "files" && !hasRepo ? (
           <Files
             taskId={id}
+            source={
+              task.data.grant.workspace.kind === "copy"
+                ? task.data.grant.workspace.source
+                : undefined
+            }
             list={files.data}
             loading={files.isLoading}
             error={files.error}
@@ -167,7 +174,7 @@ function TaskHeader(props: { task: Task; live: boolean; replaying: boolean; onRe
   });
   const now = useNow(task.status === "active");
   const end = task.ended?.at ?? (task.status === "active" ? now : task.updatedAt);
-  const repo = task.grant.workspace.kind === "clone" ? task.grant.workspace.source : undefined;
+  const repo = task.grant.workspace.kind !== "none" ? task.grant.workspace.source : undefined;
 
   return (
     <header className="task-head">
@@ -328,6 +335,7 @@ function StatusCard(props: {
           </button>
         )}
         {(produced.length > 0 || props.diff) && <RevealChip taskId={task.id} />}
+        {produced.length > 0 && <SaveChip task={task} />}
         {props.diff && (
           <button type="button" className="chip" onClick={props.onChanges}>
             {files.length > 0
@@ -352,6 +360,54 @@ function RevealChip({ taskId }: { taskId: string }) {
     >
       <Reveal size={14} />
       {t("card.reveal")}
+    </button>
+  );
+}
+
+/**
+ * Saving the task's files to a folder of the person's: the one chosen when the task was created,
+ * or one picked now. Once saved, the chip shows where and opens it in Finder.
+ */
+function SaveChip({ task }: { task: Task }) {
+  const { t } = useI18n();
+  const client = useQueryClient();
+  const save = useMutation({
+    mutationFn: async () => {
+      const dir = task.outputDir ?? (await api.pickFolder(t("new.outputPrompt")));
+      return dir ? api.save(task.id, dir) : undefined;
+    },
+    onSuccess: (result) => {
+      if (result) client.setQueryData(["task", task.id], result.task);
+    },
+  });
+  const reveal = useMutation({ mutationFn: () => api.reveal(task.id, { saved: true }) });
+  const last = task.exports.at(-1);
+  const name = (path: string) => path.split("/").at(-1) ?? path;
+  const error = (save.error ?? reveal.error)?.message;
+
+  if (last) {
+    return (
+      <button
+        type="button"
+        className="chip saved"
+        title={error ?? last.destination}
+        onClick={() => reveal.mutate()}
+      >
+        <Check size={14} />
+        {t("card.saved", { dir: name(last.destination) })}
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="chip"
+      title={error ?? task.outputDir}
+      disabled={save.isPending}
+      onClick={() => save.mutate()}
+    >
+      <Download size={14} />
+      {task.outputDir ? t("card.save", { dir: name(task.outputDir) }) : t("card.saveChoose")}
     </button>
   );
 }

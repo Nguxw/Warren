@@ -1493,6 +1493,10 @@ a.chip:hover {
   font-weight: 600;
   color: var(--text-2);
 }
+.field-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -1664,6 +1668,16 @@ button.chip.primary:hover {
   color: var(--accent-hover);
 }
 
+.chip.saved {
+  border-color: transparent;
+  background: var(--success-soft);
+  color: var(--success);
+}
+button.chip.saved:hover {
+  color: var(--success);
+  border-color: var(--success);
+}
+
 .location {
   display: flex;
   flex-wrap: wrap;
@@ -1695,6 +1709,13 @@ button.chip.primary:hover {
 .location .form-error {
   flex-basis: 100%;
   margin: 0;
+}
+
+.copy-summary {
+  margin: -4px 0 14px 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .files-split {
@@ -1776,7 +1797,10 @@ button.chip.primary:hover {
   list-style: none;
 }
 .file-name {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
   min-width: 0;
   font-size: 13px;
   line-height: 1.4;

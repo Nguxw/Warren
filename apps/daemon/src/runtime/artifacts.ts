@@ -1,5 +1,6 @@
-import { lstatSync, readdirSync, realpathSync } from "node:fs";
-import { extname, isAbsolute, join, relative, sep } from "node:path";
+import { copyFileSync, lstatSync, mkdirSync, readdirSync, realpathSync } from "node:fs";
+import { dirname, extname, isAbsolute, join, relative, sep } from "node:path";
+import { SKIPPED_DIRS } from "./folders.ts";
 
 /**
  * The files a task produced, for the person to look at.
@@ -16,13 +17,21 @@ export interface ArtifactFile {
   path: string;
   size: number;
   modifiedAt: number;
+  /** Against the folder the workspace was copied from; absent for other workspaces. */
+  status?: "added" | "modified";
 }
 
 export interface ArtifactList {
   root: string;
   files: ArtifactFile[];
   truncated: boolean;
+  /** For a copied folder: files the task left as they were, and files it removed. */
+  unchanged?: number;
+  deleted?: string[];
 }
+
+/** Each file of a copied folder as it was before the task ran: path → [size, mtime]. */
+export type Baseline = Record<string, [number, number]>;
 
 export type ArtifactContent =
   | { kind: "text"; path: string; size: number; text: string; truncated: boolean }
@@ -32,17 +41,6 @@ export type ArtifactContent =
 /** A path that is not a file of the workspace. */
 export class ArtifactPathError extends Error {}
 
-const SKIP = new Set([
-  ".git",
-  "node_modules",
-  ".venv",
-  "venv",
-  "__pycache__",
-  ".mypy_cache",
-  ".pytest_cache",
-  ".ruff_cache",
-  ".DS_Store",
-]);
 const MAX_FILES = 500;
 const MAX_TEXT = 1_000_000;
 const MAX_IMAGE = 8_000_000;
@@ -54,32 +52,96 @@ const IMAGES: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-/** Every file in the workspace, newest first. */
-export function listArtifacts(root: string): ArtifactList {
-  const files: ArtifactFile[] = [];
-  let truncated = false;
-  const walk = (dir: string) => {
+/** Every regular file under `root`, without following links or entering skipped folders. */
+function walkFiles(root: string, visit: (path: string, size: number, mtime: number) => boolean) {
+  const walk = (dir: string): boolean => {
     let names: string[];
     try {
       names = readdirSync(dir);
     } catch {
-      return;
+      return true;
     }
     for (const name of names) {
-      if (truncated) return;
-      if (SKIP.has(name)) continue;
+      if (SKIPPED_DIRS.has(name)) continue;
       const full = join(dir, name);
       const stat = lstatSync(full, { throwIfNoEntry: false });
-      if (stat?.isDirectory()) walk(full);
-      else if (stat?.isFile()) {
-        if (files.length >= MAX_FILES) truncated = true;
-        else files.push({ path: relative(root, full), size: stat.size, modifiedAt: stat.mtimeMs });
+      if (stat?.isDirectory()) {
+        if (!walk(full)) return false;
+      } else if (stat?.isFile() && !visit(relative(root, full), stat.size, stat.mtimeMs)) {
+        return false;
       }
     }
+    return true;
   };
   walk(root);
+}
+
+/** What a copied folder holds before the task starts, to tell its changes apart later. */
+export function snapshot(root: string): Baseline {
+  const baseline: Baseline = {};
+  walkFiles(root, (path, size, mtime) => {
+    baseline[path] = [size, mtime];
+    return true;
+  });
+  return baseline;
+}
+
+/**
+ * The workspace's files, newest first. With a baseline, only what the task added or changed,
+ * plus how many files it left alone and which it removed.
+ */
+export function listArtifacts(root: string, baseline?: Baseline): ArtifactList {
+  const files: ArtifactFile[] = [];
+  const seen = new Set<string>();
+  let truncated = false;
+  let unchanged = 0;
+  walkFiles(root, (path, size, modifiedAt) => {
+    seen.add(path);
+    const before = baseline?.[path];
+    if (baseline && before && before[0] === size && before[1] === modifiedAt) {
+      unchanged += 1;
+      return true;
+    }
+    if (files.length >= MAX_FILES) {
+      truncated = true;
+      return Boolean(baseline);
+    }
+    files.push({
+      path,
+      size,
+      modifiedAt,
+      ...(baseline && { status: before ? ("modified" as const) : ("added" as const) }),
+    });
+    return true;
+  });
   files.sort((a, b) => b.modifiedAt - a.modifiedAt || a.path.localeCompare(b.path));
-  return { root, files, truncated };
+  if (!baseline) return { root, files, truncated };
+  const deleted = Object.keys(baseline)
+    .filter((path) => !seen.has(path))
+    .sort();
+  return { root, files, truncated, unchanged, deleted };
+}
+
+/**
+ * Copies files of the workspace to `destination`, keeping their relative paths. Each is
+ * checked like a read: a link or a path out of the workspace is skipped, never followed.
+ */
+export function exportArtifacts(root: string, paths: string[], destination: string): number {
+  let copied = 0;
+  for (const path of paths) {
+    let real: string;
+    try {
+      real = resolveArtifact(root, path);
+    } catch {
+      continue;
+    }
+    if (!lstatSync(real).isFile()) continue;
+    const target = join(destination, path);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(real, target);
+    copied += 1;
+  }
+  return copied;
 }
 
 /** The real path of a workspace file, or an error if it is not one. */

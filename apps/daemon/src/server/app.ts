@@ -1,8 +1,9 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { LogInvariantError, statusOf, type TaskState } from "@warren/core";
 import {
   CreateTaskRequest,
+  type Grant,
   ResolveAttentionRequest,
   SendInputRequest,
   TaskStatus,
@@ -16,11 +17,20 @@ import { InvalidSecretError } from "../config/secrets.ts";
 import { SecretUpdate, type Settings, SettingsError, SettingsPatch } from "../config/settings.ts";
 import {
   ArtifactPathError,
+  type Baseline,
+  exportArtifacts,
   listArtifacts,
   readArtifact,
   resolveArtifact,
 } from "../runtime/artifacts.ts";
 import type { WorkspaceDiff } from "../runtime/diff.ts";
+import {
+  checkCopySize,
+  checkFolder,
+  exportFolder,
+  FolderError,
+  type FolderRules,
+} from "../runtime/folders.ts";
 import type { Scheduler } from "../runtime/scheduler.ts";
 import { computeStats } from "../runtime/stats.ts";
 import { type TaskStore, UnknownTaskError } from "../store/task-store.ts";
@@ -38,6 +48,12 @@ export interface AppDeps {
   settings: Settings;
   /** The directory a task works in; its files are what the task produced. */
   workspaceOf(taskId: string): string;
+  /** For a copied folder, its files before the task ran. */
+  baselineOf(taskId: string): Baseline | undefined;
+  /** Which of the person's folders may be copied from or saved to. */
+  folders: FolderRules;
+  /** Asks the person to pick a folder with the system's dialog; undefined if they cancel. */
+  pickFolder?(prompt: string): Promise<string | undefined>;
   /** Shows a file or folder in the system file manager without opening it; absent off macOS. */
   reveal?(path: string): Promise<void>;
   sandbox: string;
@@ -84,6 +100,7 @@ export function createApp(deps: AppDeps) {
       return c.json({ error: error.message }, 400);
     }
     if (error instanceof ArtifactPathError) return c.json({ error: error.message }, 404);
+    if (error instanceof FolderError) return c.json({ error: error.message }, 400);
     return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
   });
 
@@ -116,14 +133,18 @@ export function createApp(deps: AppDeps) {
         message: `unknown model role "${modelRole}"; configured: ${Object.keys(config.models).join(", ")}`,
       });
     }
-    let workspace: { kind: "none" } | { kind: "clone"; source: string } = { kind: "none" };
+    let workspace: Grant["workspace"] = { kind: "none" };
     if (body.repo) {
-      const source = resolve(body.repo);
-      if (!existsSync(join(source, ".git")) || !statSync(source).isDirectory()) {
-        throw new HTTPException(400, { message: `${source} is not a git repository` });
+      const source = checkFolder(resolve(body.repo), deps.folders);
+      // A repository is cloned, so its result comes back as a branch; any other folder is
+      // copied, and its result is saved where the person chooses.
+      if (existsSync(join(source, ".git"))) workspace = { kind: "clone", source };
+      else {
+        checkCopySize(source);
+        workspace = { kind: "copy", source };
       }
-      workspace = { kind: "clone", source };
     }
+    const outputDir = body.outputDir ? checkFolder(body.outputDir, deps.folders) : undefined;
     const id = deps.newId();
     const state = store.create(id, {
       title: body.title ?? titleOf(body.instruction),
@@ -137,6 +158,7 @@ export function createApp(deps: AppDeps) {
       },
       trigger: { source: "manual" },
       modelRole,
+      ...(outputDir && { outputDir }),
     });
     scheduler.wake(id);
     return c.json({ task: view(state) }, 201);
@@ -149,7 +171,7 @@ export function createApp(deps: AppDeps) {
     const tasks = store.list({ ...(parsed && { status: parsed }), limit }).map((task) => {
       const state = store.get(task.id);
       const workspace = state?.grant.workspace;
-      const source = workspace?.kind === "clone" ? workspace.source : undefined;
+      const source = workspace && workspace.kind !== "none" ? workspace.source : undefined;
       const repo = source ? { repo: basename(source), repoPath: source } : {};
       const outcome = state?.ended ? { outcome: state.ended.outcome } : {};
       if (task.status !== "waiting") return { ...task, ...repo, ...outcome };
@@ -188,11 +210,58 @@ export function createApp(deps: AppDeps) {
     return c.json({ diff });
   });
 
-  /** The files in the task's workspace: what it produced (or, with a repository, the clone). */
+  /**
+   * The files in the task's workspace: what it produced. For a copied folder, only what it added
+   * or changed; with a repository, the whole clone (the diff shows the changes).
+   */
   app.get("/tasks/:id/files", (c) => {
-    const root = deps.workspaceOf(load(c).id);
+    const id = load(c).id;
+    const root = deps.workspaceOf(id);
     if (!existsSync(root)) return c.json({ root, files: [], truncated: false });
-    return c.json(listArtifacts(root));
+    return c.json(listArtifacts(root, deps.baselineOf(id)));
+  });
+
+  /**
+   * Saves the task's files to a folder of the person's: into a new subfolder named after the
+   * task, never over existing files. From a copied folder only what the task added or changed.
+   */
+  app.post("/tasks/:id/export", async (c) => {
+    const state = load(c);
+    const body = z.object({ dir: z.string().optional() }).parse(await c.req.json());
+    const dir = body.dir ?? state.outputDir;
+    if (!dir) throw new HTTPException(400, { message: "no folder to save to" });
+    if (state.grant.workspace.kind === "clone") {
+      throw new HTTPException(400, { message: "a repository task's result is its branch" });
+    }
+    const target = checkFolder(dir, deps.folders);
+    const root = deps.workspaceOf(state.id);
+    if (!existsSync(root)) throw new HTTPException(404, { message: "no workspace yet" });
+    const { files } = listArtifacts(root, deps.baselineOf(state.id));
+    if (files.length === 0) throw new HTTPException(400, { message: "nothing to save" });
+    const destination = exportFolder(target, state.title, `warren-${state.id.slice(-8)}`);
+    const copied = exportArtifacts(
+      root,
+      files.map((f) => f.path),
+      destination,
+    );
+    const next = store.append(state.id, [
+      { type: "artifacts.exported", data: { destination, files: copied } },
+    ]);
+    return c.json({ destination, files: copied, task: view(next) });
+  });
+
+  /** Opens the system's folder picker for the interface, which cannot see paths itself. */
+  app.post("/pick-folder", async (c) => {
+    if (!deps.pickFolder) throw new HTTPException(501, { message: "not supported on this system" });
+    const { prompt } = z
+      .object({ prompt: z.string().max(200).default("") })
+      .parse(await c.req.json());
+    // The person may take a while to choose; the request must outlive the idle timeout.
+    (c.env as { timeout?(request: Request, seconds: number): void } | undefined)?.timeout?.(
+      c.req.raw,
+      0,
+    );
+    return c.json({ path: (await deps.pickFolder(prompt)) ?? null });
   });
 
   app.get("/tasks/:id/files/content", async (c) => {
@@ -200,13 +269,23 @@ export function createApp(deps: AppDeps) {
     return c.json({ file: await readArtifact(root, c.req.query("path") ?? "") });
   });
 
-  /** Reveals the workspace, or one of its files, in Finder. */
+  /** Reveals the workspace, one of its files, or the latest save of its files in Finder. */
   app.post("/tasks/:id/reveal", async (c) => {
-    const root = deps.workspaceOf(load(c).id);
-    const { path } = z.object({ path: z.string().optional() }).parse(await c.req.json());
+    const state = load(c);
+    const root = deps.workspaceOf(state.id);
+    const body = z
+      .object({ path: z.string().optional(), saved: z.boolean().optional() })
+      .parse(await c.req.json());
     if (!deps.reveal) throw new HTTPException(501, { message: "not supported on this system" });
+    if (body.saved) {
+      // Only a destination the log says Warren wrote; never a path from the request.
+      const saved = state.exports.at(-1)?.destination;
+      if (!saved || !existsSync(saved)) throw new HTTPException(404, { message: "not saved" });
+      await deps.reveal(saved);
+      return c.json({ ok: true });
+    }
     if (!existsSync(root)) throw new HTTPException(404, { message: "no workspace yet" });
-    await deps.reveal(path ? resolveArtifact(root, path) : root);
+    await deps.reveal(body.path ? resolveArtifact(root, body.path) : root);
     return c.json({ ok: true });
   });
 

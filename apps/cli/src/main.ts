@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   loadConfig,
@@ -36,12 +36,15 @@ Usage:
   warren service install|uninstall|status
                                      Run the daemon at login with launchd
   warren run <instruction…>          Start a task and follow it
-      --repo <path>                    Work in a clone of this git repository
+      --repo <path>                    Work on this folder: a git repository is cloned,
+                                       any other folder copied; the original is not changed
+      --output <dir>                   Folder to save the task's files to (warren save)
       --title <text>                   Task title
       --model <role>                   Model role from the config (default: main)
       --max-calls <n>                  Model call budget (default: 100)
       --network                        Let the task's commands reach the network
       --detach                         Do not follow the task
+  warren save <id> [<dir>]           Save a task's files to <dir> (default: its --output)
   warren tasks [--all]               List tasks (default: not ended)
   warren show <id>                   Print a task's whole history
   warren follow <id>                 Follow a task until it needs you or stops
@@ -94,6 +97,8 @@ async function main(argv: string[]): Promise<number> {
     case "resume":
     case "cancel":
       return control(command, rest);
+    case "save":
+      return save(rest);
     case "doctor":
       return doctor();
     case "triggers":
@@ -181,6 +186,7 @@ async function run(args: string[]): Promise<number> {
     allowPositionals: true,
     options: {
       repo: { type: "string" },
+      output: { type: "string" },
       title: { type: "string" },
       model: { type: "string" },
       "max-calls": { type: "string" },
@@ -194,7 +200,9 @@ async function run(args: string[]): Promise<number> {
   const api = client();
   const { task } = await api.request<{ task: TaskView }>("POST", "/tasks", {
     instruction,
-    ...(values.repo && { repo: values.repo }),
+    // Paths are resolved here: the daemon runs in another directory.
+    ...(values.repo && { repo: resolve(values.repo) }),
+    ...(values.output && { outputDir: resolve(values.output) }),
     ...(values.title && { title: values.title }),
     ...(values.model && { modelRole: values.model }),
     ...(maxCalls && { budget: { maxModelCalls: maxCalls } }),
@@ -269,6 +277,18 @@ async function decide(args: string[], approved: boolean): Promise<number> {
     { response: words.join(" "), approved },
   );
   return follow(api, next.id, next.lastSeq);
+}
+
+async function save(args: string[]): Promise<number> {
+  const [id, dir] = args;
+  if (!id || args.length > 2) throw new CliError("usage: warren save <id> [<dir>]");
+  const result = await client().request<{ destination: string; files: number }>(
+    "POST",
+    `/tasks/${id}/export`,
+    dir ? { dir: resolve(dir) } : {},
+  );
+  console.log(`saved ${result.files} files to ${result.destination}`);
+  return 0;
 }
 
 async function control(action: "pause" | "resume" | "cancel", args: string[]): Promise<number> {

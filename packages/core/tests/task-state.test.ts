@@ -153,6 +153,25 @@ describe("foldEvents", () => {
     expect(statusOf(ended)).toBe("ended");
   });
 
+  test("saving a finished task's files is recorded after its end, without reopening it", () => {
+    const state = foldEvents(
+      log(
+        { ...created, data: { ...created.data, outputDir: "/Users/me/Reports" } },
+        { type: "task.ended", data: { outcome: "completed" } },
+        {
+          type: "artifacts.exported",
+          data: { destination: "/Users/me/Reports/Fix bug", files: 3 },
+        },
+      ),
+    );
+    expect(state.outputDir).toBe("/Users/me/Reports");
+    expect(state.exports).toEqual([
+      { destination: "/Users/me/Reports/Fix bug", files: 3, at: 2000 },
+    ]);
+    expect(statusOf(state)).toBe("ended");
+    expect(state.lastSeq).toBe(2);
+  });
+
   test("usage adds up across responses and a response resets the failure count", () => {
     const state = foldEvents(
       log(

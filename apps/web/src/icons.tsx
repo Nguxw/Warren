@@ -202,6 +202,13 @@ export function Reveal(props: IconProps) {
     </Svg>
   );
 }
+export function Download(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 4.5v10M7.5 10.5 12 15l4.5-4.5M5 19.5h14" />
+    </Svg>
+  );
+}
 export function Package(props: IconProps) {
   return (
     <Svg {...props}>

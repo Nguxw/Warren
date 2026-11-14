@@ -11,6 +11,8 @@ import { formatBytes, groupFiles, previewKind } from "../model.ts";
 /** What the task produced: its workspace's files, and a preview of the one picked. */
 export function Files(props: {
   taskId: string;
+  /** For a copied folder: the original, so the list reads as changes to it. */
+  source?: string | undefined;
   list: ArtifactList | undefined;
   loading: boolean;
   error: Error | null;
@@ -39,8 +41,22 @@ export function Files(props: {
   return (
     <div className="files">
       <Location taskId={props.taskId} root={list.root} />
+      {props.source && (
+        <p className="copy-summary">
+          {t("files.copySummary", { source: props.source, unchanged: list.unchanged ?? 0 })}
+          {(list.deleted?.length ?? 0) > 0 && (
+            <span className="minus">
+              {" · "}
+              {t("files.deleted", {
+                n: list.deleted?.length ?? 0,
+                files: (list.deleted ?? []).slice(0, 5).join(", "),
+              })}
+            </span>
+          )}
+        </p>
+      )}
       {list.files.length === 0 ? (
-        <p className="empty-note">{t("files.none")}</p>
+        <p className="empty-note">{props.source ? t("files.noChanges") : t("files.none")}</p>
       ) : (
         <div className="files-split">
           <ul className="file-list">
@@ -91,7 +107,14 @@ function FileRow(props: { file: ArtifactFile; name: string; selected: boolean; o
       title={file.path}
     >
       <FileIcon size={14} />
-      <span className="file-name">{props.name}</span>
+      <span className="file-name">
+        {props.name}
+        {file.status && (
+          <span className={`tag ${file.status === "added" ? "success" : "warning"}`}>
+            {t(`files.${file.status}`)}
+          </span>
+        )}
+      </span>
       <span className="file-meta">
         {formatBytes(file.size)} · {formatAgo(t, Date.now() - file.modifiedAt)}
       </span>
@@ -103,7 +126,9 @@ function FileRow(props: { file: ArtifactFile; name: string; selected: boolean; o
 export function Location(props: { taskId: string; root: string; path?: string }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
-  const reveal = useMutation({ mutationFn: () => api.reveal(props.taskId, props.path) });
+  const reveal = useMutation({
+    mutationFn: () => api.reveal(props.taskId, props.path ? { path: props.path } : undefined),
+  });
   const full = props.path ? `${props.root}/${props.path}` : props.root;
   return (
     <div className="location">

@@ -42,12 +42,17 @@ export interface ArtifactFile {
   path: string;
   size: number;
   modifiedAt: number;
+  /** For a copied folder: what the task did to the file. */
+  status?: "added" | "modified";
 }
 
 export interface ArtifactList {
   root: string;
   files: ArtifactFile[];
   truncated: boolean;
+  /** For a copied folder: files left as they were, and files the task removed. */
+  unchanged?: number;
+  deleted?: string[];
 }
 
 export type ArtifactContent =
@@ -136,8 +141,17 @@ export const api = {
       "GET",
       `/tasks/${id}/files/content?path=${encodeURIComponent(path)}`,
     ).then((r) => r.file),
-  reveal: (id: string, path?: string) =>
-    request<{ ok: true }>("POST", `/tasks/${id}/reveal`, path ? { path } : {}),
+  reveal: (id: string, target?: { path: string } | { saved: true }) =>
+    request<{ ok: true }>("POST", `/tasks/${id}/reveal`, target ?? {}),
+  save: (id: string, dir?: string) =>
+    request<{ destination: string; files: number; task: TaskView }>(
+      "POST",
+      `/tasks/${id}/export`,
+      dir ? { dir } : {},
+    ),
+  /** The system's folder picker, shown by the daemon; null when the person cancels. */
+  pickFolder: (prompt: string) =>
+    request<{ path: string | null }>("POST", "/pick-folder", { prompt }).then((r) => r.path),
   settings: () => request<{ settings: Settings }>("GET", "/settings").then((r) => r.settings),
   updateSettings: (patch: SettingsPatch) =>
     request<{ settings: Settings }>("PATCH", "/settings", patch).then((r) => r.settings),

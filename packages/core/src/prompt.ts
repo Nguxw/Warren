@@ -29,7 +29,9 @@ export function systemPrompt(state: TaskState, workspace: string): string {
   const where =
     grant.workspace.kind === "clone"
       ? `Your workspace is ${workspace}, a git clone of ${grant.workspace.source}. Commit your work there on the current branch; the user reviews it from the clone.`
-      : `Your workspace is ${workspace}, an empty directory for scratch files.`;
+      : grant.workspace.kind === "copy"
+        ? `Your workspace is ${workspace}, a copy of the folder ${grant.workspace.source}. Make your changes there; the user reviews the files you change or add and saves them where they choose. The original folder is not changed.`
+        : `Your workspace is ${workspace}, an empty directory. Save what you produce for the user there (reports, data, files): the user sees and opens the files in it.`;
 
   return `You are Warren, an autonomous agent that works in the background on the user's own computer. Nobody watches you while you work; the user reads your result when you finish.
 

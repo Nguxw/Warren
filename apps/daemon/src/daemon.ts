@@ -158,6 +158,9 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       onConcurrency: (n) => scheduler.setConcurrency(n),
     }),
     workspaceOf: (id) => workspaces.pathOf(id),
+    baselineOf: (id) => workspaces.baselineOf(id),
+    folders: { warrenHome: paths.home },
+    ...(process.platform === "darwin" && { pickFolder: chooseFolder }),
     ...(process.platform === "darwin" && { reveal: revealInFinder }),
     sandbox: sandbox.name,
     triggers,
@@ -226,6 +229,27 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       return stopping;
     },
   };
+}
+
+/**
+ * The macOS folder chooser. The prompt is an argument to the script, never part of its text, and
+ * the script brings its dialog to the front, since the daemon has no window of its own.
+ */
+async function chooseFolder(prompt: string): Promise<string | undefined> {
+  const script = [
+    "on run argv",
+    "tell me to activate",
+    "return POSIX path of (choose folder with prompt (item 1 of argv))",
+    "end run",
+  ];
+  const child = Bun.spawn(
+    ["osascript", ...script.flatMap((line) => ["-e", line]), prompt || "Choose a folder"],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+  // Cancelling is error -128, an ordinary answer.
+  if (code !== 0) return undefined;
+  return out.trim().replace(/(.)\/$/, "$1");
 }
 
 /** `open -R` selects the item in Finder; it never opens or runs it, whatever the model wrote. */

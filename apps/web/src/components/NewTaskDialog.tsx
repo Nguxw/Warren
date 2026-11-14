@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TaskSummary } from "@warren/protocol";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.ts";
 import { useI18n } from "../context.tsx";
-import { Close, Folder, Globe } from "../icons.tsx";
+import { Close, Folder, Globe, Package } from "../icons.tsx";
 
 const ROLES = ["main", "hard", "cheap"] as const;
 
@@ -30,6 +30,8 @@ export function NewTaskDialog(props: {
   const recent = useMemo(() => recentRepos(props.tasks), [props.tasks]);
   const [instruction, setInstruction] = useState("");
   const [repo, setRepo] = useState(recent[0]?.path ?? "");
+  const lastOutput = savedOutputDir();
+  const [outputDir, setOutputDir] = useState(lastOutput ?? "");
   const [modelRole, setModelRole] = useState<(typeof ROLES)[number]>("main");
   // Until the person flips it, the switch shows the default from the settings.
   const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings, staleTime: 30_000 });
@@ -53,8 +55,10 @@ export function NewTaskDialog(props: {
         modelRole,
         network,
         ...(repo.trim() && { repo: repo.trim() }),
+        ...(outputDir.trim() && { outputDir: outputDir.trim() }),
       }),
     onSuccess: (task) => {
+      if (outputDir.trim()) saveOutputDir(outputDir.trim());
       client.invalidateQueries({ queryKey: ["tasks"] });
       props.onCreated(task.id);
     },
@@ -99,39 +103,33 @@ export function NewTaskDialog(props: {
           placeholder={t("new.placeholder")}
         />
 
-        <div className="field">
-          <span className="field-label">
-            <Folder size={14} />
-            {t("new.repo")}
-          </span>
-          <div className="chips">
-            <button
-              type="button"
-              className={`chip ${repo === "" ? "on" : ""}`}
-              onClick={() => setRepo("")}
-            >
-              {t("new.repoNone")}
-            </button>
-            {recent.map((item) => (
-              <button
-                key={item.path}
-                type="button"
-                className={`chip ${repo === item.path ? "on" : ""}`}
-                onClick={() => setRepo(item.path)}
-                title={item.path}
-              >
-                {item.name}
-              </button>
-            ))}
-          </div>
-          <input
-            className="path-input"
-            value={repo}
-            onChange={(e) => setRepo(e.target.value)}
-            placeholder={t("new.repoPlaceholder")}
-            spellCheck={false}
-          />
-        </div>
+        <FolderField
+          icon={<Folder size={14} />}
+          label={t("new.repo")}
+          hint={t("new.repoHint")}
+          none={t("new.repoNone")}
+          placeholder={t("new.repoPlaceholder")}
+          prompt={t("new.choosePrompt")}
+          value={repo}
+          recent={recent}
+          onChange={setRepo}
+        />
+
+        <FolderField
+          icon={<Package size={14} />}
+          label={t("new.output")}
+          hint={t("new.outputHint")}
+          none={t("new.outputNone")}
+          placeholder={t("new.outputPlaceholder")}
+          prompt={t("new.outputPrompt")}
+          value={outputDir}
+          recent={
+            lastOutput
+              ? [{ name: lastOutput.split("/").at(-1) ?? lastOutput, path: lastOutput }]
+              : []
+          }
+          onChange={setOutputDir}
+        />
 
         <div className="field-row">
           <div className="field">
@@ -180,6 +178,92 @@ export function NewTaskDialog(props: {
           </button>
         </footer>
       </form>
+    </div>
+  );
+}
+
+const OUTPUT_KEY = "warren.outputDir";
+
+/** The folder results were last saved to, offered again for the next task. */
+function savedOutputDir(): string | undefined {
+  try {
+    return localStorage.getItem(OUTPUT_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function saveOutputDir(dir: string): void {
+  try {
+    localStorage.setItem(OUTPUT_KEY, dir);
+  } catch {
+    // Without storage the folder is simply not offered next time.
+  }
+}
+
+/** A folder: none, a recent one, one picked in the system's dialog, or a typed path. */
+function FolderField(props: {
+  icon: ReactNode;
+  label: string;
+  hint: string;
+  none: string;
+  placeholder: string;
+  prompt: string;
+  value: string;
+  recent: { name: string; path: string }[];
+  onChange(path: string): void;
+}) {
+  const { t } = useI18n();
+  const pick = useMutation({
+    mutationFn: () => api.pickFolder(props.prompt),
+    onSuccess: (path) => {
+      if (path) props.onChange(path);
+    },
+  });
+  return (
+    <div className="field">
+      <span className="field-label">
+        {props.icon}
+        {props.label}
+      </span>
+      <div className="chips">
+        <button
+          type="button"
+          className={`chip ${props.value === "" ? "on" : ""}`}
+          onClick={() => props.onChange("")}
+        >
+          {props.none}
+        </button>
+        {props.recent.map((item) => (
+          <button
+            key={item.path}
+            type="button"
+            className={`chip ${props.value === item.path ? "on" : ""}`}
+            onClick={() => props.onChange(item.path)}
+            title={item.path}
+          >
+            {item.name}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="chip"
+          disabled={pick.isPending}
+          onClick={() => pick.mutate()}
+        >
+          <Folder size={13} />
+          {t("new.choose")}
+        </button>
+      </div>
+      <input
+        className="path-input"
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        placeholder={props.placeholder}
+        spellCheck={false}
+      />
+      <span className="field-hint">{props.hint}</span>
+      {pick.error && <p className="form-error">{pick.error.message}</p>}
     </div>
   );
 }

@@ -5,6 +5,7 @@ export * from "./daemon.ts";
 export * from "./paths.ts";
 export * from "./runtime/artifacts.ts";
 export * from "./runtime/diff.ts";
+export * from "./runtime/folders.ts";
 export * from "./runtime/github.ts";
 export * from "./runtime/intake.ts";
 export * from "./runtime/models.ts";

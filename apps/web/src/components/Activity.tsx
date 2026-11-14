@@ -200,6 +200,8 @@ export function noticeText(t: Translate, notice: Notice): string {
       return t("notice.resumed");
     case "compacted":
       return t("notice.compacted", { n: notice.replaces });
+    case "exported":
+      return t("notice.exported", { n: notice.files, destination: notice.destination });
     default: {
       const heading = t(`notice.${notice.type}`);
       return notice.summary ? `${heading}\n${notice.summary}` : heading;

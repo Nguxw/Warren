@@ -14,6 +14,11 @@ export const Workspace = z.discriminatedUnion("kind", [
     source: z.string(),
     ref: z.string().optional(),
   }),
+  /**
+   * A copy of the folder `source`, which is not a git repository. The original is never written;
+   * the person saves the task's changes where they choose.
+   */
+  z.object({ kind: z.literal("copy"), source: z.string() }),
 ]);
 export type Workspace = z.infer<typeof Workspace>;
 

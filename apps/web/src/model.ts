@@ -47,6 +47,7 @@ export type Notice =
   | { type: "paused"; reason: string }
   | { type: "resumed" }
   | { type: "compacted"; replaces: number }
+  | { type: "exported"; destination: string; files: number }
   | { type: "completed" | "failed" | "cancelled"; summary?: string };
 
 /** An entry with a key that stays the same as the log grows: `<seq>.<n-th entry of that event>`. */
@@ -178,6 +179,15 @@ export function timeline(events: readonly TaskEvent[]): KeyedEntry[] {
         break;
       case "task.resumed":
         entries.push({ kind: "notice", seq, at, tone: "info", notice: { type: "resumed" } });
+        break;
+      case "artifacts.exported":
+        entries.push({
+          kind: "notice",
+          seq,
+          at,
+          tone: "success",
+          notice: { type: "exported", ...event.data },
+        });
         break;
       case "task.ended": {
         const tone =

@@ -17,7 +17,7 @@ export interface TaskSummary {
   createdAt: number;
   updatedAt: number;
   lastSeq: number;
-  /** Name of the repository the task works on, if any. */
+  /** Name of the folder (a repository or a copied folder) the task works on, if any. */
   repo?: string;
   /** Its local path. */
   repoPath?: string;
@@ -30,8 +30,13 @@ export interface TaskSummary {
 export const CreateTaskRequest = z.object({
   instruction: z.string().min(1),
   title: z.string().optional(),
-  /** Local git repository to clone into the task's workspace. Omit for no workspace files. */
+  /**
+   * A local folder the task works on: a git repository is cloned, any other folder copied. The
+   * original is never written. Omit for an empty workspace.
+   */
   repo: z.string().optional(),
+  /** Where to offer saving the task's files when it ends; an absolute folder path. */
+  outputDir: z.string().optional(),
   /** Model role from the config, such as `main` or `hard`. */
   modelRole: z.string().optional(),
   /** Whether the task's commands may reach the network; default from the config (off). */

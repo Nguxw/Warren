@@ -27,7 +27,8 @@
 | `tool.finished` | 工具结果：`ok`、`error`、`interrupted`、`denied` |
 | `attention.requested` / `attention.resolved` | 需要人回答的问题或审批，及其答复 |
 | `task.paused` / `task.resumed` | 暂停与恢复 |
-| `task.ended` | 结束：`completed`、`failed`、`cancelled`。之后不能再追加事件 |
+| `task.ended` | 结束：`completed`、`failed`、`cancelled`。之后只能追加 `artifacts.exported` |
+| `artifacts.exported` | 你把任务的文件保存到了自己的文件夹：保存到哪里、几个文件。这是你对已完成结果的操作，所以可以在结束之后追加，也不会让任务重新开始 |
 
 ## 内部对话格式
 

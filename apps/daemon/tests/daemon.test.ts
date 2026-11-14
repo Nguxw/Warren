@@ -195,8 +195,12 @@ describe("daemon", () => {
     expect((await fetch(`${d.url}/tasks`)).status).toBe(401);
     expect((await call("GET", "/tasks/nope")).status).toBe(404);
     expect((await call("POST", "/tasks", { instruction: "" })).status).toBe(400);
+    expect(
+      (await call("POST", "/tasks", { instruction: "x", repo: join(root, "nope") })).body.error,
+    ).toContain("is not a folder");
+    // The folder holds Warren's home: copying it would show the model Warren's own data.
     expect((await call("POST", "/tasks", { instruction: "x", repo: root })).body.error).toContain(
-      "is not a git repository",
+      "Warren's own data",
     );
     expect(
       (await call("POST", "/tasks", { instruction: "x", modelRole: "turbo" })).body.error,

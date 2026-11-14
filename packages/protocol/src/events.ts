@@ -65,6 +65,8 @@ export const TaskCreated = event(
      * the task, and its questions and result are posted back there.
      */
     follows: z.array(z.string()).optional(),
+    /** Where the person wants the task's files saved; offered when the task ends. */
+    outputDir: z.string().optional(),
   }),
 );
 
@@ -162,6 +164,18 @@ export const TaskEnded = event(
   }),
 );
 
+/**
+ * The task's files were copied out of its workspace to a folder of the person's, at their
+ * request. The only event allowed after `task.ended`: it records what Warren wrote outside.
+ */
+export const ArtifactsExported = event(
+  "artifacts.exported",
+  z.object({
+    destination: z.string(),
+    files: z.number().int().nonnegative(),
+  }),
+);
+
 export const TaskEvent = z.discriminatedUnion("type", [
   TaskCreated,
   InputReceived,
@@ -175,6 +189,7 @@ export const TaskEvent = z.discriminatedUnion("type", [
   TaskPaused,
   TaskResumed,
   TaskEnded,
+  ArtifactsExported,
 ]);
 export type TaskEvent = z.infer<typeof TaskEvent>;
 export type TaskEventType = TaskEvent["type"];
@@ -199,4 +214,5 @@ export const EVENT_VERSIONS: { readonly [T in TaskEventType]: EventOf<T>["v"] } 
   "task.paused": 1,
   "task.resumed": 1,
   "task.ended": 1,
+  "artifacts.exported": 1,
 };

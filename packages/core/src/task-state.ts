@@ -69,6 +69,10 @@ export interface TaskState {
   answers: Record<string, { response: string; approved?: boolean }>;
   paused?: { reason: string; at: number };
   ended?: { outcome: TaskEndOutcome; summary?: string; at: number };
+  /** Where the person wants the task's files saved, chosen when it was created. */
+  outputDir?: string;
+  /** Times the task's files were saved out of its workspace, oldest first. */
+  exports: { destination: string; files: number; at: number }[];
   usage: UsageTotals;
   modelFailuresInARow: number;
   compactions: number;
@@ -97,7 +101,7 @@ export function foldEvents(events: Iterable<TaskEvent>): TaskState {
 export function createState(event: TaskEvent): TaskState {
   if (event.type !== "task.created") fail(event, "a log must start with task.created");
   if (event.seq !== 0) fail(event, "task.created must have seq 0");
-  const { title, instruction, grant, trigger, modelRole, follows } = event.data;
+  const { title, instruction, grant, trigger, modelRole, follows, outputDir } = event.data;
   return {
     id: event.taskId,
     title,
@@ -106,6 +110,8 @@ export function createState(event: TaskEvent): TaskState {
     trigger,
     ...(modelRole !== undefined && { modelRole }),
     follows: follows ?? [],
+    ...(outputDir !== undefined && { outputDir }),
+    exports: [],
     createdAt: event.at,
     updatedAt: event.at,
     lastSeq: 0,
@@ -133,7 +139,8 @@ export function createState(event: TaskEvent): TaskState {
 export function applyEvent(state: TaskState, event: TaskEvent): void {
   if (event.taskId !== state.id) fail(event, `belongs to another task (${state.id})`);
   if (event.seq !== state.lastSeq + 1) fail(event, `expected seq ${state.lastSeq + 1}`);
-  if (state.ended) fail(event, "the task has ended");
+  // Saving files out is the person's action on a finished result, so it may follow the end.
+  if (state.ended && event.type !== "artifacts.exported") fail(event, "the task has ended");
 
   switch (event.type) {
     case "task.created":
@@ -249,6 +256,10 @@ export function applyEvent(state: TaskState, event: TaskEvent): void {
     case "task.resumed":
       if (!state.paused) fail(event, "not paused");
       state.paused = undefined;
+      break;
+
+    case "artifacts.exported":
+      state.exports.push({ ...event.data, at: event.at });
       break;
 
     case "task.ended":
