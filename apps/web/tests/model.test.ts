@@ -11,6 +11,7 @@ import {
   formatBytes,
   groupFiles,
   groupTasks,
+  lastModel,
   previewKind,
   primaryArtifact,
   timeline,
@@ -197,6 +198,31 @@ describe("retry notices", () => {
       ["info", "recovered"],
       ["warn", "retryable"],
     ]);
+  });
+});
+
+describe("reasoning and model", () => {
+  test("reasoning shows its summary, or only its length when there is none", () => {
+    const responded = (reasoningTokens: number, summary?: string): EventDraft => ({
+      type: "model.responded",
+      data: {
+        model: { provider: "p", model: "gpt-x" },
+        usage: { ...usage, reasoningTokens },
+        latencyMs: 1,
+        stopReason: "end_turn",
+        items: [
+          { type: "reasoning", provider: "p", data: null, ...(summary && { summary }) },
+          { type: "message", role: "assistant", content: text("6") },
+        ],
+      },
+    });
+    const thoughts = (events: TaskEvent[]) =>
+      timeline(events).flatMap((e) => (e.kind === "reasoning" ? [[e.text, e.tokens]] : []));
+    expect(thoughts(log(responded(120)))).toEqual([["", 120]]);
+    expect(thoughts(log(responded(40, "Solve 3x+7=25")))).toEqual([["Solve 3x+7=25", 40]]);
+    expect(thoughts(log(responded(0)))).toEqual([]);
+    expect(lastModel(log(responded(0)))).toBe("gpt-x");
+    expect(lastModel([])).toBeUndefined();
   });
 });
 

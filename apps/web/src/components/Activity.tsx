@@ -17,6 +17,7 @@ import {
   argsPreview,
   type Block,
   categoryOf,
+  compact,
   type KeyedEntry,
   type Notice,
   type StepCategory,
@@ -145,7 +146,16 @@ function EntryView({ entry }: { entry: KeyedEntry }): ReactNode {
         </div>
       );
     case "reasoning":
-      return <p className="reasoning">{entry.text}</p>;
+      return (
+        <div className="reasoning">
+          <span className="reasoning-label">
+            {entry.tokens
+              ? t("activity.thoughtTokens", { n: compact(entry.tokens) })
+              : t("activity.thought")}
+          </span>
+          {entry.text && <p>{entry.text}</p>}
+        </div>
+      );
     case "attention":
       return (
         <div className={`asked ${entry.type}`}>

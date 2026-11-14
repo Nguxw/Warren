@@ -170,7 +170,7 @@ export async function runTask(
     try {
       const response = await resolved.client.complete({
         model: resolved.model,
-        instructions: systemPrompt(state, deps.workspaceOf(taskId)),
+        instructions: systemPrompt(state, deps.workspaceOf(taskId), model),
         items: state.history,
         tools: specs,
         cacheKey: taskId,

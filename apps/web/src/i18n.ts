@@ -52,6 +52,10 @@ const zh = {
   "outcome.failed": "失败",
   "outcome.cancelled": "已取消",
 
+  "activity.thought": "思考",
+  "activity.thoughtTokens": "思考 · {n} tokens",
+  "meta.modelTitle": "模型角色和实际使用的模型",
+  "meta.usage": "输入 {input}（其中缓存 {cached}）· 输出 {output}（其中推理 {reasoning}）tokens",
   "home.title": "今天要 Warren 做什么？",
   "home.body": "说清楚要完成的事，回车就开始。它在后台的独立工作区里完成，只在需要你的时候打扰你。",
   "home.placeholder": "描述要完成的事…",
@@ -324,6 +328,10 @@ const en: Record<MessageKey, string> = {
   "outcome.failed": "Failed",
   "outcome.cancelled": "Cancelled",
 
+  "activity.thought": "Thought",
+  "activity.thoughtTokens": "Thought · {n} tokens",
+  "meta.modelTitle": "Model role and the model actually used",
+  "meta.usage": "{input} in ({cached} cached) · {output} out ({reasoning} reasoning) tokens",
   "home.title": "What should Warren do?",
   "home.body":
     "Say what needs doing and press Enter. It works in its own workspace in the background and only interrupts you when it needs you.",

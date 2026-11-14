@@ -73,7 +73,13 @@ export function toRequestBody(request: ModelRequest): ResponseCreateParamsNonStr
     })),
     store: false,
     include: ["reasoning.encrypted_content"],
-    ...(request.reasoningEffort && { reasoning: { effort: request.reasoningEffort } }),
+    // Summaries let the person follow the reasoning; accounts without them get none, no error.
+    ...(request.reasoningEffort && {
+      reasoning: {
+        effort: request.reasoningEffort,
+        ...(request.reasoningEffort !== "none" && { summary: "auto" as const }),
+      },
+    }),
     ...(request.maxOutputTokens && { max_output_tokens: request.maxOutputTokens }),
     ...(request.cacheKey && { prompt_cache_key: request.cacheKey }),
   };

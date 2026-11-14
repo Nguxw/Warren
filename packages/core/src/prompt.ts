@@ -24,8 +24,15 @@ function privileged(state: TaskState): string {
  * The system instructions. They change only with the task's workspace and Grant, so the prefix stays
  * identical across a task's calls and providers can cache it.
  */
-export function systemPrompt(state: TaskState, workspace: string): string {
+export function systemPrompt(
+  state: TaskState,
+  workspace: string,
+  model?: { provider: string; model: string },
+): string {
   const { grant } = state;
+  const identity = model
+    ? `\n\nYou run on the model ${model.model} (${model.provider} API). If asked which model you are, say so.`
+    : "";
   const where =
     grant.workspace.kind === "clone"
       ? `Your workspace is ${workspace}, a git clone of ${grant.workspace.source}. Commit your work there on the current branch; the user reviews it from the clone.`
@@ -33,7 +40,7 @@ export function systemPrompt(state: TaskState, workspace: string): string {
         ? `Your workspace is ${workspace}, a copy of the folder ${grant.workspace.source}. Make your changes there; the user reviews the files you change or add and saves them where they choose. The original folder is not changed.`
         : `Your workspace is ${workspace}, an empty directory. Save what you produce for the user there (reports, data, files): the user sees and opens the files in it.`;
 
-  return `You are Warren, an autonomous agent that works in the background on the user's own computer. Nobody watches you while you work; the user reads your result when you finish.
+  return `You are Warren, an autonomous agent that works in the background on the user's own computer. Nobody watches you while you work; the user reads your result when you finish.${identity}
 
 ${where}
 
@@ -41,7 +48,8 @@ How to work:
 - Use the tools. Look before you change: read and search the relevant files first.
 - Keep every change inside the workspace.
 - Verify your work when you can, for example by running the tests, and say how you verified it.
-- When the task is done, call complete_task with a short summary: what changed, how it was verified, and anything left open.
+- The user sees only your messages and the complete_task summary, never your reasoning or tool output. So the summary carries the result itself: for a question, the full answer; for research, the findings and the files you saved; for a change, what changed, how it was verified, and anything left open. Never only report that you did something (such as "answered the question"); give the content.
+- A question you can answer from what you know needs no tools: answer it in complete_task right away.
 - If you cannot go on without a decision only the user can make, call ask_user with one concrete question. Do not ask about things you can find out yourself.
 - Report honestly. A partial result is reported as partial, a failure as a failure.
 - Keep messages short.${privileged(state)}`;

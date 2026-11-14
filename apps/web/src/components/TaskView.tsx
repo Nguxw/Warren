@@ -31,6 +31,7 @@ import {
   deliverables,
   displayTitle,
   type KeyedEntry,
+  lastModel,
   primaryArtifact,
   timeline,
 } from "../model.ts";
@@ -77,6 +78,7 @@ export function TaskView({ id }: { id: string }) {
     <article className="task-view">
       <TaskHeader
         task={shown}
+        model={lastModel(visible)}
         live={!replaying}
         replaying={replaying}
         onReplay={() => {
@@ -166,7 +168,14 @@ export function TaskView({ id }: { id: string }) {
   );
 }
 
-function TaskHeader(props: { task: Task; live: boolean; replaying: boolean; onReplay(): void }) {
+function TaskHeader(props: {
+  task: Task;
+  /** The model that answered last. */
+  model: string | undefined;
+  live: boolean;
+  replaying: boolean;
+  onReplay(): void;
+}) {
   const { t } = useI18n();
   const { task } = props;
   const control = useMutation({
@@ -230,9 +239,10 @@ function TaskHeader(props: { task: Task; live: boolean; replaying: boolean; onRe
             {repo.split("/").at(-1)}
           </span>
         )}
-        <span>
+        <span title={t("meta.modelTitle")}>
           <Cpu size={13} />
           {task.modelRole ?? "main"}
+          {props.model && <span className="meta-model">{props.model}</span>}
         </span>
         <span>
           {task.grant.network ? <Globe size={13} /> : <Offline size={13} />}
@@ -243,7 +253,12 @@ function TaskHeader(props: { task: Task; live: boolean; replaying: boolean; onRe
           {formatDuration(t, end - task.createdAt)}
         </span>
         <span
-          title={`${compact(task.usage.inputTokens)} in · ${compact(task.usage.outputTokens)} out`}
+          title={t("meta.usage", {
+            input: compact(task.usage.inputTokens),
+            cached: compact(task.usage.cachedInputTokens),
+            output: compact(task.usage.outputTokens),
+            reasoning: compact(task.usage.reasoningTokens),
+          })}
         >
           <Coin size={13} />${task.usage.costUsd.toFixed(3)} ·{" "}
           {t("meta.calls", { n: task.usage.modelCalls })}

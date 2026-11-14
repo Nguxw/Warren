@@ -11,7 +11,8 @@ export type Entry =
   | { kind: "instruction"; seq: number; at: number; text: string }
   | { kind: "user"; seq: number; at: number; text: string; source: string }
   | { kind: "assistant"; seq: number; at: number; text: string }
-  | { kind: "reasoning"; seq: number; at: number; text: string }
+  /** The model's reasoning: its summary when the provider gives one, else only how long it was. */
+  | { kind: "reasoning"; seq: number; at: number; text: string; tokens?: number }
   | {
       kind: "tool";
       seq: number;
@@ -86,11 +87,24 @@ export function timeline(events: readonly TaskEvent[]): KeyedEntry[] {
           }
         }
         retrying = [];
+        {
+          const summary = event.data.items
+            .flatMap((item) => (item.type === "reasoning" && item.summary ? [item.summary] : []))
+            .join("\n\n");
+          const tokens = event.data.usage.reasoningTokens ?? 0;
+          if (summary || tokens > 0) {
+            entries.push({
+              kind: "reasoning",
+              seq,
+              at,
+              text: summary,
+              ...(tokens > 0 && { tokens }),
+            });
+          }
+        }
         for (const item of event.data.items) {
           if (item.type === "message") {
             entries.push({ kind: "assistant", seq, at, text: joinText(item.content) });
-          } else if (item.type === "reasoning" && item.summary) {
-            entries.push({ kind: "reasoning", seq, at, text: item.summary });
           } else if (item.type === "tool_call" && !SILENT_TOOLS.has(item.name)) {
             const entry = {
               kind: "tool" as const,
@@ -514,4 +528,13 @@ export function groupFiles<T extends { path: string }>(files: readonly T[]): Fil
         files: list.sort((a, b) => a.path.localeCompare(b.path)),
       })),
   };
+}
+
+/** The model that answered last, as the provider named it. */
+export function lastModel(events: readonly TaskEvent[]): string | undefined {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (event?.type === "model.responded") return event.data.model.model;
+  }
+  return undefined;
 }
