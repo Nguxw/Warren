@@ -37,6 +37,8 @@
 - Seatbelt 按真实路径匹配（`/private/var/...` 而不是 `/var/...`），所有路径参数都先解析成真实路径。
 - **`mktemp` 包装脚本：** macOS 的 `mktemp` 无视 `TMPDIR`，总是写系统的用户临时目录。为了不放开那个目录（那里有其他应用会执行的临时文件，等于一条逃出沙箱的路），scratch 里放了一个包装脚本，排在 `PATH` 最前面，把临时文件转到 `$TMPDIR`。
 
+**附件：** 你附上的文件在沙箱里只能读到 `scratch/attachments/` 这份副本。守护进程发给模型的、界面显示的，都是沙箱之外的 `attachments/` 里的原件，所以模型改不了你给它的东西。界面打开附件时，响应带 `X-Content-Type-Options: nosniff`，PDF 以外的类型还带 `Content-Security-Policy: sandbox`；除了图片和 PDF，其他类型一律下载，不在页面里打开。这样附上的 HTML 或 SVG 不会以界面的源运行、读到界面的 token。HEIC 等格式由守护进程调用 `sips` 转换，转换在沙箱之外进行，处理的是你自己上传的文件。
+
 没有 Seatbelt 的平台（Linux），配置默认 `sandbox: "auto"` 会退回无沙箱并记录错误日志，`doctor` 也会提示。设为 `"seatbelt"` 时，没有沙箱就拒绝启动。
 
 ## 特权工具

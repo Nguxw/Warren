@@ -4,6 +4,7 @@ export * from "./config/settings.ts";
 export * from "./daemon.ts";
 export * from "./paths.ts";
 export * from "./runtime/artifacts.ts";
+export * from "./runtime/attachments.ts";
 export * from "./runtime/automations.ts";
 export * from "./runtime/diff.ts";
 export * from "./runtime/folders.ts";

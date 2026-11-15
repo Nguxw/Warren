@@ -8,6 +8,7 @@ import type {
   TaskStatus,
   TaskSummary,
   TriggerRecord,
+  Upload,
 } from "@warren/protocol";
 
 /**
@@ -179,8 +180,27 @@ export const api = {
     request<{ ok: boolean; sandbox: string; secrets: Record<string, boolean> }>("GET", "/health"),
   create: (body: CreateTaskRequest) =>
     request<{ task: TaskView }>("POST", "/tasks", body).then((r) => r.task),
-  send: (id: string, text: string) =>
-    request<{ task: TaskView }>("POST", `/tasks/${id}/input`, { text }),
+  send: (id: string, text: string, attachments: string[] = []) =>
+    request<{ task: TaskView }>("POST", `/tasks/${id}/input`, {
+      text,
+      ...(attachments.length > 0 && { attachments }),
+    }),
+  /** Uploads a file to attach to the next task or message. */
+  upload: async (file: File): Promise<Upload> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/uploads", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token() ?? ""}` },
+      body: form,
+    });
+    if (res.status === 401) throw new Unauthorized("Not signed in");
+    const json = (await res.json()) as { uploads?: Upload[]; error?: string };
+    const upload = json.uploads?.[0];
+    if (!res.ok || !upload) throw new Error(json.error ?? `HTTP ${res.status}`);
+    return upload;
+  },
+  discardUpload: (id: string) => request<{ deleted: string }>("DELETE", `/uploads/${id}`),
   resolve: (id: string, attentionId: string, response: string, approved?: boolean) =>
     request<{ task: TaskView }>("POST", `/tasks/${id}/attention/${attentionId}`, {
       response,
@@ -249,4 +269,9 @@ export function subscribe(after: number, onEvent: (event: TaskEvent) => void): (
     onEvent(JSON.parse((message as MessageEvent<string>).data) as TaskEvent);
   });
   return () => source.close();
+}
+
+/** Where the interface loads a task's attached file; the token rides along for <img> and links. */
+export function attachmentUrl(taskId: string, name: string): string {
+  return `/tasks/${taskId}/attachments/${encodeURIComponent(name)}?token=${encodeURIComponent(token() ?? "")}`;
 }

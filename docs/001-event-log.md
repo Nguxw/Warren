@@ -46,7 +46,7 @@
 
 | 条目 | 说明 |
 |---|---|
-| `message` | `user` 或 `assistant` 的消息，内容是 `ContentPart` 数组。新的内容类型（如图片）作为新成员加入，不改动已有格式 |
+| `message` | `user` 或 `assistant` 的消息，内容是 `ContentPart` 数组，成员有 `text` 和 `file`。`file` 是附件的引用（名称、类型、大小），文件本身存在任务目录里，不进日志（见 [003](003-runtime.md#附件)）。新的内容类型作为新成员加入，不改动已有格式 |
 | `reasoning` | 提供方私有的推理状态（如 OpenAI 加密推理、Anthropic thinking 签名）。只有 `provider` 字段指明的适配器能解释 `data`，换模型时其他适配器会丢掉它 |
 | `tool_call` | 工具调用；`arguments` 保存模型产出的原始 JSON 文本，可能不合法，执行时再校验 |
 | `tool_result` | 工具结果，由 `tool.finished` 生成 |

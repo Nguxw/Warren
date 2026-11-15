@@ -66,6 +66,9 @@ export function modelResolver(
         ...(config.maxOutputTokens && { maxOutputTokens: config.maxOutputTokens }),
         ...(config.price && { price: config.price }),
         ...(config.contextWindow && { contextWindow: config.contextWindow }),
+        inputs:
+          config.inputs ??
+          (config.provider === "openai-compatible" ? [] : (["image", "pdf"] as const)),
       };
     },
   };

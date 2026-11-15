@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { reply, ScriptedModel, toolCall } from "@warren/core/testing";
+import { textOf } from "@warren/protocol";
 import { type RunningDaemon, startDaemon } from "../src/index.ts";
 
 let root: string;
@@ -141,7 +142,7 @@ test("a mention on an issue becomes a task that asks and reports in the same con
   const answer = d.store
     .get(task?.id ?? "")
     ?.history.find(
-      (item) => item.type === "tool_result" && item.content[0]?.text === "Use NOTES.md",
+      (item) => item.type === "tool_result" && textOf(item.content) === "Use NOTES.md",
     );
   expect(answer).toBeDefined();
   await until(() => posted.length === 2);

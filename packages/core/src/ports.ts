@@ -9,6 +9,7 @@ import type {
   Usage,
 } from "@warren/protocol";
 import type { z } from "zod";
+import type { FileInput } from "./attachments.ts";
 import type { TaskState } from "./task-state.ts";
 
 /**
@@ -36,6 +37,11 @@ export interface ModelRequest {
   maxOutputTokens?: number;
   /** Stable per task, so providers that cache by key can reuse the prefix. */
   cacheKey?: string;
+  /**
+   * Bytes of the attached files the model takes in directly, by name. A file part without bytes
+   * here is left out: the conversation already names it in text.
+   */
+  files?: ReadonlyMap<string, Uint8Array>;
   signal?: AbortSignal;
 }
 
@@ -79,6 +85,8 @@ export interface ResolvedModel {
   price?: ModelPrice;
   /** Context window in tokens; compaction keeps requests well below it. */
   contextWindow?: number;
+  /** Kinds of attached file the model takes in directly; others reach it as a path. */
+  inputs?: readonly FileInput[];
 }
 
 export interface ModelResolver {

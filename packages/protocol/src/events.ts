@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { Grant, TriggerRef } from "./grant.ts";
-import { ContentPart, ModelOutputItem, ToolOutcome, Usage, UserMessageItem } from "./items.ts";
+import {
+  ContentPart,
+  FilePart,
+  ModelOutputItem,
+  ToolOutcome,
+  Usage,
+  UserMessageItem,
+} from "./items.ts";
 
 /**
  * Task event log, format v1.
@@ -69,6 +76,8 @@ export const TaskCreated = event(
     outputDir: z.string().optional(),
     /** Skills the person chose for the task, by name. */
     skills: z.array(z.string()).optional(),
+    /** Files attached to the instruction. */
+    attachments: z.array(FilePart).optional(),
   }),
 );
 

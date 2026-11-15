@@ -1,4 +1,11 @@
-import type { TaskEvent, TaskSummary, ToolOutcome } from "@warren/protocol";
+import {
+  type ContentPart,
+  type FilePart,
+  filesOf,
+  type TaskEvent,
+  type TaskSummary,
+  type ToolOutcome,
+} from "@warren/protocol";
 
 /**
  * View models for the interface, as pure functions of API data so they can be tested without a
@@ -8,8 +15,8 @@ import type { TaskEvent, TaskSummary, ToolOutcome } from "@warren/protocol";
 export type ToolStatus = "pending" | "awaiting approval" | "running" | ToolOutcome;
 
 export type Entry =
-  | { kind: "instruction"; seq: number; at: number; text: string }
-  | { kind: "user"; seq: number; at: number; text: string; source: string }
+  | { kind: "instruction"; seq: number; at: number; text: string; files: FilePart[] }
+  | { kind: "user"; seq: number; at: number; text: string; source: string; files: FilePart[] }
   | { kind: "assistant"; seq: number; at: number; text: string }
   /** The model's reasoning: its summary when the provider gives one, else only how long it was. */
   | { kind: "reasoning"; seq: number; at: number; text: string; tokens?: number }
@@ -68,7 +75,13 @@ export function timeline(events: readonly TaskEvent[]): KeyedEntry[] {
     const { seq, at } = event;
     switch (event.type) {
       case "task.created":
-        entries.push({ kind: "instruction", seq, at, text: event.data.instruction });
+        entries.push({
+          kind: "instruction",
+          seq,
+          at,
+          text: event.data.instruction,
+          files: event.data.attachments ?? [],
+        });
         break;
       case "input.received":
         entries.push({
@@ -77,6 +90,7 @@ export function timeline(events: readonly TaskEvent[]): KeyedEntry[] {
           at,
           text: joinText(event.data.item.content),
           source: event.data.trigger.source,
+          files: filesOf(event.data.item.content),
         });
         break;
       case "model.responded":
@@ -282,8 +296,8 @@ export function argsPreview(args: string, max = 120): string {
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
-function joinText(parts: readonly { text: string }[]): string {
-  return parts.map((part) => part.text).join("\n");
+function joinText(parts: readonly ContentPart[]): string {
+  return parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 }
 
 // ------------------------------------------------------------------ activity

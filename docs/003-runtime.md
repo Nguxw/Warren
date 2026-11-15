@@ -50,6 +50,27 @@ Web 界面 ───┼─HTTP + SSE（127.0.0.1，带 token）──▶ warren 
   - 复制前检查大小，超过 5 万个文件或 4 GB 就拒绝。
   这样复制进来的副本里不会带上凭证，保存出去也不会写到密钥或 Warren 自己的数据上。
 
+## 附件
+
+你可以给任务和后续消息附上文件：图片、PDF、表格、文档，或者任何其他文件。代码在 `apps/daemon/src/runtime/attachments.ts` 和 `packages/core/src/attachments.ts`。
+
+- **先上传，后认领。** 界面在你添加文件时就上传（`POST /uploads`），文件暂存在 `~/.warren/uploads/<id>/`。发送任务或消息时，请求里只带上传 id。守护进程先检查所有 id 都存在，再把文件移进 `tasks/<id>/attachments/`，所以写错一个 id 什么都不会移动。没人认领的上传一天后删除。
+- **日志里只有引用。** 附件在消息里是一个 `file` 内容块（名称、类型、大小），文件字节不进事件日志，日志的大小与附件无关。附件存进任务目录后不再改变，名字在任务内唯一（同名时加 ` (2)`）。
+- **两份文件，各有用途。**
+  - `tasks/<id>/attachments/`：在沙箱之外，模型的命令改不到。守护进程从这里读取文件发给模型，界面也从这里显示。
+  - `scratch/attachments/`：在 APFS 上用克隆复制，不占额外空间。沙箱里的命令可以读取和处理这份副本。系统提示词会告诉模型这个目录在哪里。
+- **类型判断。** 先看文件头（PDF、PNG、JPEG、GIF、WebP、HEIC），再看扩展名。内容是合法 UTF-8 文本的文件一律当作文本，不管扩展名是什么（`.ts` 不会被当成视频）。
+- **图片转换。** HEIC、TIFF、BMP，以及超过 5 MB 的图片，上传时用 macOS 的 `sips` 转成长边不超过 2048 像素的 JPEG。转换失败就保留原文件，模型只能通过路径拿到它。
+- **模型看到什么。** 每次调用模型前，`modelView()` 把每个附件变成这个模型能接收的形式：
+  - 图片和 PDF：如果模型支持（`ResolvedModel.inputs`），直接把文件发给模型。OpenAI 用 `input_image` / `input_file`，Anthropic 用 `image` / `document`，Chat Completions 用 `image_url` / `file`。
+  - 256 KB 以内的文本文件（CSV、Markdown、JSON、代码……）：内容直接写进消息，所有模型都能读。
+  - 其他文件，或者模型不支持的类型：只给出路径和类型，模型用 shell 处理（例如用 `textutil` 读 Word 文档）。
+  - 文件已经读不到时，标注为"不再可用"，不会让这次调用失败。
+- **模型能接收什么。** 配置里每个模型可以写 `inputs`（`["image", "pdf"]` 的子集）。OpenAI 和 Anthropic 默认两者都支持；兼容接口默认都不支持，因为那里很多模型只读文本，给本地的视觉模型配上 `"inputs": ["image"]` 即可。
+- **上下文估算。** 一张图片按约 1600 token 计，PDF 按大小估算。压缩上下文时，摘要里用路径指代附件。第一条消息（任务说明）永远不会被压缩，它带的附件会一直留在对话里。
+- **限制。** 单个文件最大 50 MB，一条消息最多 20 个文件。
+- **命令行。** `warren run --file <路径>`、`warren send <id> --file <路径>`，可以重复使用。
+
 ## 模型
 
 - **角色：** 配置里的 `main`、`cheap`、`hard` 各指向一个模型。任务在 `task.created` 里记录角色名，实际用的模型记录在每个 `model.responded` 里。
@@ -109,13 +130,15 @@ Web 界面 ───┼─HTTP + SSE（127.0.0.1，带 token）──▶ warren 
 
 | 路由 | 作用 |
 |---|---|
-| `POST /tasks` | 创建任务（`instruction`、`repo`、`outputDir`、`modelRole`、`network`、`budget`、`skills`、`mcpServers`），并唤醒 |
+| `POST /uploads`、`DELETE /uploads/:id` | 上传一个要附加的文件（multipart，字段名 `file`），返回上传 id；或撤回一个还没发送的上传 |
+| `POST /tasks` | 创建任务（`instruction`、`repo`、`outputDir`、`modelRole`、`network`、`budget`、`skills`、`mcpServers`、`attachments`），并唤醒 |
 | `GET /tasks`、`GET /tasks/:id` | 列表和详情 |
 | `DELETE /tasks/:id` | 删除任务：日志和工作区；运行中的先停止 |
 | `GET /tasks/:id/events?after=` | 任务事件 |
 | `GET /tasks/:id/stream?after=` | 单任务 SSE 流，支持 `Last-Event-ID` 断点续传 |
 | `GET /events?after=`、`GET /events/cursor` | 全部任务的 SSE 流（按全局顺序，给界面用）和当前位置 |
-| `POST /tasks/:id/input` | 发消息给任务，唤醒空闲的任务 |
+| `POST /tasks/:id/input` | 发消息给任务（`text`，可以带 `attachments`；只带文件也可以），唤醒空闲的任务 |
+| `GET /tasks/:id/attachments/:name` | 一个附件。图片和 PDF 直接显示，其他文件下载；响应带 `nosniff` 和 `CSP: sandbox`，附上的 HTML、SVG 不会作为界面同源的页面运行 |
 | `POST /tasks/:id/attention/:attentionId` | 回答问题，或批准、拒绝 |
 | `POST /tasks/:id/pause`、`resume`、`cancel` | 控制任务 |
 | `GET /tasks/:id/diff` | 仓库任务的改动（在任务的沙箱里生成） |

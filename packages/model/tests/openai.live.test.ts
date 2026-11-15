@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ConversationItem } from "@warren/protocol";
+import { type ConversationItem, textOf } from "@warren/protocol";
 import { ChatCompletionsClient, OpenAIResponsesClient } from "../src/index.ts";
 
 /**
@@ -119,7 +119,7 @@ test.skipIf(!key)(
     const second = await client.complete({ ...request, items });
     expect(second.stopReason).toBe("end_turn");
     const answer = second.items.find((item) => item.type === "message");
-    expect(answer?.type === "message" && answer.content[0]?.text).toContain("Pineapple");
+    expect(answer?.type === "message" && textOf(answer.content)).toContain("Pineapple");
   },
   120_000,
 );

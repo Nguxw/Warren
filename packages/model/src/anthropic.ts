@@ -13,6 +13,7 @@ import {
   type ReasoningEffort,
 } from "@warren/core";
 import type { ConversationItem, ModelOutputItem, StopReason } from "@warren/protocol";
+import { type Files, joinText, sentFile } from "./files.ts";
 
 /**
  * Anthropic Messages API adapter (official SDK).
@@ -73,7 +74,7 @@ export function toAnthropicRequest(request: ModelRequest): MessageCreateParamsNo
     model: request.model,
     max_tokens: request.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
     system: request.instructions,
-    messages: toAnthropicMessages(request.items),
+    messages: toAnthropicMessages(request.items, request.files),
     cache_control: { type: "ephemeral" },
     ...(request.tools.length > 0 && {
       tools: request.tools.map((tool) => ({
@@ -87,7 +88,10 @@ export function toAnthropicRequest(request: ModelRequest): MessageCreateParamsNo
 }
 
 /** Groups items into alternating user and assistant messages. */
-export function toAnthropicMessages(items: readonly ConversationItem[]): MessageParam[] {
+export function toAnthropicMessages(
+  items: readonly ConversationItem[],
+  files?: Files,
+): MessageParam[] {
   const messages: MessageParam[] = [];
   const push = (role: "user" | "assistant", block: ContentBlockParam) => {
     const last = messages.at(-1);
@@ -100,9 +104,31 @@ export function toAnthropicMessages(items: readonly ConversationItem[]): Message
 
   for (const item of items) {
     switch (item.type) {
-      case "message":
+      case "message": {
+        const sent = item.content.flatMap((part) => sentFile(part, files) ?? []);
+        // Files first, as Anthropic recommends, then the text that refers to them.
+        for (const file of sent) {
+          push(
+            "user",
+            file.mediaType === "application/pdf"
+              ? {
+                  type: "document",
+                  source: { type: "base64", media_type: "application/pdf", data: file.base64 },
+                  title: file.name,
+                }
+              : {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: file.mediaType as "image/png",
+                    data: file.base64,
+                  },
+                },
+          );
+        }
         push(item.role, { type: "text", text: joinText(item.content) || " " });
         break;
+      }
       case "reasoning":
         // Only Anthropic's own thinking blocks can go back, and only exactly as they came.
         if (item.provider === ANTHROPIC && item.data && typeof item.data === "object") {
@@ -225,8 +251,4 @@ function parseInput(args: string): Record<string, unknown> {
   } catch {
     return {};
   }
-}
-
-function joinText(parts: readonly { text: string }[]): string {
-  return parts.map((part) => part.text).join("\n");
 }

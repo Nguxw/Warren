@@ -3,9 +3,11 @@ import {
   type ToolCallItem,
   type ToolOutcome,
   text,
+  textOf,
   type Usage,
 } from "@warren/protocol";
 import { z } from "zod";
+import { modelView } from "./attachments.ts";
 import { estimateTokens, planCompaction, SUMMARIZE_INSTRUCTIONS, transcript } from "./context.ts";
 import {
   ModelError,
@@ -37,6 +39,8 @@ export interface LoopDeps {
   skills?(): readonly SkillSummary[];
   workspaceOf(taskId: string): string;
   scratchOf(taskId: string): string;
+  /** The bytes of a file attached to the task, by its name among the task's attachments. */
+  readAttachment?(taskId: string, name: string): Promise<Uint8Array>;
   newId(): string;
   sleep(ms: number, signal: AbortSignal): Promise<void>;
   limits?: Partial<LoopLimits>;
@@ -177,13 +181,25 @@ export async function runTask(
 
     const started = Date.now();
     try {
+      const view = await modelView(state.history, resolved.inputs ?? [], (name) =>
+        deps.readAttachment
+          ? deps.readAttachment(taskId, name)
+          : Promise.reject(new Error("attachments cannot be read")),
+      );
       const response = await resolved.client.complete({
         model: resolved.model,
-        instructions: systemPrompt(state, deps.workspaceOf(taskId), model, deps.skills?.() ?? []),
-        items: state.history,
+        instructions: systemPrompt(
+          state,
+          deps.workspaceOf(taskId),
+          model,
+          deps.skills?.() ?? [],
+          deps.scratchOf(taskId),
+        ),
+        items: view.items,
         tools: specs,
         cacheKey: taskId,
         signal,
+        ...(view.files.size > 0 && { files: view.files }),
         ...(resolved.reasoningEffort && { reasoningEffort: resolved.reasoningEffort }),
         ...(resolved.maxOutputTokens && { maxOutputTokens: resolved.maxOutputTokens }),
       });
@@ -236,7 +252,7 @@ export async function runTask(
       signal,
     });
     const summary = response.items
-      .flatMap((item) => (item.type === "message" ? item.content.map((part) => part.text) : []))
+      .flatMap((item) => (item.type === "message" ? [textOf(item.content)] : []))
       .join("\n")
       .trim();
     if (!summary) return false;

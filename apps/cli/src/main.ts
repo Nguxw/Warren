@@ -54,6 +54,7 @@ Usage:
       --model <role>                   Model role from the config (default: main)
       --max-calls <n>                  Model call budget (default: 100)
       --network                        Let the task's commands reach the network
+      --file <path>                    Attach a file (image, PDF, anything); repeatable
       --detach                         Do not follow the task
   warren save <id> [<dir>]           Save a task's files to <dir> (default: its --output)
   warren delete <id> --yes           Delete a task: its log and workspace (stops it if running)
@@ -61,7 +62,7 @@ Usage:
   warren tasks [--all]               List tasks (default: not ended)
   warren show <id>                   Print a task's whole history
   warren follow <id>                 Follow a task until it needs you or stops
-  warren send <id> <text…>           Send a message to a task and follow it
+  warren send <id> <text…>           Send a message to a task and follow it (--file to attach)
   warren answer <id> <text…>         Answer the task's open question and follow it
   warren approve <id>                Approve the action the task is waiting on
   warren deny <id> [reason…]         Decline it; the reason goes to the task
@@ -219,14 +220,17 @@ async function run(args: string[]): Promise<number> {
       "max-calls": { type: "string" },
       network: { type: "boolean" },
       detach: { type: "boolean" },
+      file: { type: "string", multiple: true },
     },
   });
   const instruction = positionals.join(" ").trim();
   if (!instruction) throw new CliError('usage: warren run "<instruction>" [--repo <path>]');
   const maxCalls = values["max-calls"] ? Number(values["max-calls"]) : undefined;
   const api = client();
+  const attachments = await api.upload((values.file ?? []).map((path) => resolve(path)));
   const { task } = await api.request<{ task: TaskView }>("POST", "/tasks", {
     instruction,
+    ...(attachments.length > 0 && { attachments }),
     // Paths are resolved here: the daemon runs in another directory.
     ...(values.repo && { repo: resolve(values.repo) }),
     ...(values.output && { outputDir: resolve(values.output) }),
@@ -267,11 +271,21 @@ async function show(args: string[]): Promise<number> {
 }
 
 async function send(args: string[]): Promise<number> {
-  const [id, ...words] = args;
-  if (!id || words.length === 0) throw new CliError('usage: warren send <id> "<message>"');
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: { file: { type: "string", multiple: true } },
+  });
+  const [id, ...words] = positionals;
+  const files = (values.file ?? []).map((path) => resolve(path));
+  if (!id || (words.length === 0 && files.length === 0)) {
+    throw new CliError('usage: warren send <id> "<message>" [--file <path>]');
+  }
   const api = client();
+  const attachments = await api.upload(files);
   const { task } = await api.request<{ task: TaskView }>("POST", `/tasks/${id}/input`, {
     text: words.join(" "),
+    ...(attachments.length > 0 && { attachments }),
   });
   return follow(api, task.id, task.lastSeq);
 }

@@ -13,8 +13,21 @@ export const TextPart = z.object({
   text: z.string(),
 });
 
-/** Union kept open on purpose: images and files become new members, not new fields. */
-export const ContentPart = z.discriminatedUnion("type", [TextPart]);
+/**
+ * A file a person attached. Its bytes stay on disk with the task (`attachments/<name>`); the log
+ * keeps only this reference, so a task's log stays small however large the files are.
+ */
+export const FilePart = z.object({
+  type: z.literal("file"),
+  /** The file's name among the task's attachments, unique within the task. */
+  name: z.string(),
+  mediaType: z.string(),
+  size: z.number().int().nonnegative(),
+});
+export type FilePart = z.infer<typeof FilePart>;
+
+/** Union kept open on purpose: new kinds of content become new members, not new fields. */
+export const ContentPart = z.discriminatedUnion("type", [TextPart, FilePart]);
 export type ContentPart = z.infer<typeof ContentPart>;
 
 export const UserMessageItem = z.object({
@@ -95,4 +108,14 @@ export type Usage = z.infer<typeof Usage>;
 
 export function text(value: string): ContentPart[] {
   return [{ type: "text", text: value }];
+}
+
+/** The text of some content, without its files. */
+export function textOf(parts: readonly ContentPart[]): string {
+  return parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+}
+
+/** The files in some content. */
+export function filesOf(parts: readonly ContentPart[]): FilePart[] {
+  return parts.filter((part): part is FilePart => part.type === "file");
 }

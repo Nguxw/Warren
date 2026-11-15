@@ -34,6 +34,33 @@ const model = { provider: "p", model: "m" };
 const usage = { inputTokens: 1, outputTokens: 1 };
 
 describe("timeline", () => {
+  test("messages carry their attached files", () => {
+    const png = { type: "file", name: "a.png", mediaType: "image/png", size: 3 } as const;
+    const entries = timeline(
+      log(
+        {
+          type: "task.created",
+          data: {
+            title: "T",
+            instruction: "Look",
+            grant: { workspace: { kind: "none" }, network: false, privilegedTools: [], budget: {} },
+            trigger: { source: "manual" },
+            attachments: [png],
+          },
+        },
+        {
+          type: "input.received",
+          data: {
+            item: { type: "message", role: "user", content: [png] },
+            trigger: { source: "manual" },
+          },
+        },
+      ),
+    );
+    expect(entries[0]).toMatchObject({ kind: "instruction", text: "Look", files: [png] });
+    expect(entries[1]).toMatchObject({ kind: "user", text: "", files: [png] });
+  });
+
   test("pairs tool calls with results and hides control tools", () => {
     const entries = timeline(
       log(

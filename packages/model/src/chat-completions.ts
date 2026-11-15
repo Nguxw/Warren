@@ -1,14 +1,16 @@
 import type { ModelClient, ModelRequest, ModelResponse } from "@warren/core";
 import { ModelError } from "@warren/core";
-import type { ConversationItem, ModelOutputItem, StopReason } from "@warren/protocol";
+import type { ContentPart, ConversationItem, ModelOutputItem, StopReason } from "@warren/protocol";
 import OpenAI from "openai";
 import type {
   ChatCompletion,
   ChatCompletionAssistantMessageParam,
+  ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam,
 } from "openai/resources/chat/completions/completions";
 import { classifyError } from "./errors.ts";
+import { dataUrl, type Files, joinText, sentFile } from "./files.ts";
 
 /**
  * Adapter for OpenAI-compatible Chat Completions APIs: DeepSeek, Qwen (DashScope), Ollama,
@@ -57,7 +59,10 @@ export class ChatCompletionsClient implements ModelClient {
 export function toChatRequest(request: ModelRequest): ChatCompletionCreateParamsNonStreaming {
   return {
     model: request.model,
-    messages: [{ role: "system", content: request.instructions }, ...toMessages(request.items)],
+    messages: [
+      { role: "system", content: request.instructions },
+      ...toMessages(request.items, request.files),
+    ],
     ...(request.tools.length > 0 && {
       tools: request.tools.map((tool) => ({
         type: "function" as const,
@@ -73,7 +78,10 @@ export function toChatRequest(request: ModelRequest): ChatCompletionCreateParams
  * One model response may hold text, reasoning and several calls as separate items; Chat
  * Completions wants them as one assistant message. Consecutive assistant-side items are merged.
  */
-export function toMessages(items: readonly ConversationItem[]): ChatCompletionMessageParam[] {
+export function toMessages(
+  items: readonly ConversationItem[],
+  files?: Files,
+): ChatCompletionMessageParam[] {
   const messages: ChatCompletionMessageParam[] = [];
   let assistant:
     | { texts: string[]; calls: NonNullable<ChatCompletionAssistantMessageParam["tool_calls"]> }
@@ -95,7 +103,7 @@ export function toMessages(items: readonly ConversationItem[]): ChatCompletionMe
       case "message":
         if (item.role === "user") {
           flush();
-          messages.push({ role: "user", content: joinText(item.content) });
+          messages.push({ role: "user", content: userContent(item.content, files) });
         } else {
           assistant ??= { texts: [], calls: [] };
           assistant.texts.push(joinText(item.content));
@@ -177,6 +185,19 @@ function stopReason(reason: string | null, items: ModelOutputItem[]): StopReason
   return "other";
 }
 
-function joinText(parts: readonly { text: string }[]): string {
-  return parts.map((part) => part.text).join("\n");
+/** Plain text unless a file goes along; text-only models then see the same request as before. */
+function userContent(
+  parts: readonly ContentPart[],
+  files: Files | undefined,
+): string | ChatCompletionContentPart[] {
+  const sent = parts.map((part) => sentFile(part, files));
+  if (!sent.some(Boolean)) return joinText(parts);
+  return parts.flatMap((part, i): ChatCompletionContentPart[] => {
+    if (part.type === "text") return [{ type: "text", text: part.text }];
+    const file = sent[i];
+    if (!file) return [];
+    return file.mediaType === "application/pdf"
+      ? [{ type: "file", file: { filename: file.name, file_data: dataUrl(file) } }]
+      : [{ type: "image_url", image_url: { url: dataUrl(file) } }];
+  });
 }

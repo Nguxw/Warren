@@ -25,6 +25,7 @@ import {
   readArtifact,
   resolveArtifact,
 } from "../runtime/artifacts.ts";
+import { AttachmentError, type Attachments } from "../runtime/attachments.ts";
 import { type AutomationRunner, UnknownAutomationError } from "../runtime/automations.ts";
 import type { WorkspaceDiff } from "../runtime/diff.ts";
 import { checkFolder, FolderError, type FolderRules } from "../runtime/folders.ts";
@@ -49,6 +50,8 @@ export interface AppDeps {
   settings: Settings;
   /** The directory a task works in; its files are what the task produced. */
   workspaceOf(taskId: string): string;
+  /** Files people upload and attach to tasks and messages. */
+  attachments: Attachments;
   /** For a copied folder, its files before the task ran. */
   baselineOf(taskId: string): Baseline | undefined;
   /** Which of the person's folders may be copied from or saved to. */
@@ -71,6 +74,15 @@ export interface AppDeps {
   /** What a task changed in its workspace; undefined when it has no repository workspace. */
   diff?(task: TaskState): Promise<WorkspaceDiff | undefined>;
 }
+
+/** Attachments the browser shows in place rather than downloading. */
+const INLINE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+]);
 
 export function createApp(deps: AppDeps) {
   const { store, scheduler, notifier } = deps;
@@ -105,6 +117,7 @@ export function createApp(deps: AppDeps) {
       return c.json({ error: error.message }, 400);
     }
     if (error instanceof ArtifactPathError) return c.json({ error: error.message }, 404);
+    if (error instanceof AttachmentError) return c.json({ error: error.message }, error.status);
     if (
       error instanceof FolderError ||
       error instanceof TaskRequestError ||
@@ -152,20 +165,45 @@ export function createApp(deps: AppDeps) {
     c.json({ settings: deps.settings.setSecret(c.req.param("name"), undefined) }),
   );
 
+  /** Files to attach, uploaded ahead of the task or message that takes them. */
+  app.post("/uploads", async (c) => {
+    const body = await c.req.parseBody({ all: true });
+    const files = [body.file ?? []].flat().filter((f): f is File => f instanceof File);
+    if (files.length === 0) return c.json({ error: "no file in the form field `file`" }, 400);
+    const uploads = [];
+    for (const file of files) {
+      uploads.push(
+        await deps.attachments.stage({
+          name: file.name,
+          type: file.type,
+          bytes: new Uint8Array(await file.arrayBuffer()),
+        }),
+      );
+    }
+    return c.json({ uploads }, 201);
+  });
+
+  app.delete("/uploads/:id", (c) => {
+    deps.attachments.discard(c.req.param("id"));
+    return c.json({ deleted: c.req.param("id") });
+  });
+
   app.post("/tasks", async (c) => {
     const body = CreateTaskRequest.parse(await c.req.json());
     const id = deps.newId();
-    const state = store.create(
-      id,
-      taskData(
-        body,
-        { source: "manual" },
-        {
-          ...deps,
-          skillNames: () => deps.skills.enabled().map((s) => s.name),
-        },
-      ),
+    const data = taskData(
+      body,
+      { source: "manual" },
+      {
+        ...deps,
+        skillNames: () => deps.skills.enabled().map((s) => s.name),
+      },
     );
+    const attachments = deps.attachments.claim(id, body.attachments ?? []);
+    const state = store.create(id, {
+      ...data,
+      ...(attachments.length > 0 && { attachments }),
+    });
     scheduler.wake(id);
     return c.json({ task: view(state) }, 201);
   });
@@ -220,6 +258,27 @@ export function createApp(deps: AppDeps) {
    * The files in the task's workspace: what it produced. For a copied folder, only what it added
    * or changed; with a repository, the whole clone (the diff shows the changes).
    */
+  /**
+   * An attached file. Images and PDFs open in place; anything else downloads, and nothing runs
+   * as a page of the interface's origin, since a person may attach HTML or SVG.
+   */
+  app.get("/tasks/:id/attachments/:name", (c) => {
+    const state = load(c);
+    const name = c.req.param("name");
+    const file = state.attachments.find((f) => f.name === name);
+    if (!file) return c.json({ error: `no attachment ${name}` }, 404);
+    const shown = INLINE_TYPES.has(file.mediaType);
+    return new Response(Bun.file(deps.attachments.path(state.id, name)), {
+      headers: {
+        "Content-Type": file.mediaType,
+        "Content-Disposition": `${shown ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(name)}`,
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, max-age=31536000, immutable",
+        ...(file.mediaType !== "application/pdf" && { "Content-Security-Policy": "sandbox" }),
+      },
+    });
+  });
+
   app.get("/tasks/:id/files", (c) => {
     const id = load(c).id;
     const root = deps.workspaceOf(id);
@@ -400,12 +459,18 @@ export function createApp(deps: AppDeps) {
 
   app.post("/tasks/:id/input", async (c) => {
     const state = load(c);
-    const { text } = SendInputRequest.parse(await c.req.json());
+    const { text, attachments } = SendInputRequest.parse(await c.req.json());
+    if (state.ended) return c.json({ error: "the task has ended" }, 409);
+    const files = deps.attachments.claim(state.id, attachments ?? []);
     const next = store.append(state.id, [
       {
         type: "input.received",
         data: {
-          item: { type: "message", role: "user", content: [{ type: "text", text }] },
+          item: {
+            type: "message",
+            role: "user",
+            content: [...(text.trim() ? [{ type: "text" as const, text }] : []), ...files],
+          },
           trigger: { source: "manual" },
         },
       },

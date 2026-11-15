@@ -120,6 +120,9 @@ fn main() {
                     open_in_browser(&url);
                     NewWindowResponse::Deny
                 })
+                // Files dropped on the window reach the page as ordinary drop events, so they can
+                // be attached to a task.
+                .disable_drag_drop_handler()
                 .title("Warren")
                 .inner_size(1240.0, 820.0)
                 .min_inner_size(720.0, 480.0)

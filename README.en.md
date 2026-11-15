@@ -46,6 +46,7 @@ The agent itself (the loop, crash recovery, context compaction, tools and sandbo
 - Research: gathers sources on the web and writes a report with citations, previewed in the interface.
 - Code: edits, tests and commits in a clone of your repository, then pushes the commits back as a `warren/<id>` branch or opens a draft pull request.
 - Files: sorts, converts or summarises the contents of a folder and saves the result where you choose.
+- Your attachments: drop or paste screenshots, photos, PDFs and spreadsheets into the text box; the model sees images and PDFs directly, and tables and text are written into the conversation.
 - Schedules: for example, summarise GitHub trending every weekday at 18:30. A run missed while the computer slept is made up once.
 - GitHub: mention @warren in an issue; its questions and conclusions are posted back to the issue.
 - Skills and MCP: skills describe how to do a kind of work; MCP servers give it outside tools. Read-only MCP tools are called directly; others need your approval by default.
@@ -110,7 +111,7 @@ cd apps/desktop && bun run build     # optional: the desktop app
 
 ### Interface
 
-On the start page, say what to do and press Enter. Under the text you can choose a working folder, where to save results, the model, network access and which MCP servers the task may use; anything left alone uses the default. Type `/` or press + to use a skill.
+On the start page, say what to do and press Enter. Under the text you can choose a working folder, where to save results, the model, network access and which MCP servers the task may use; anything left alone uses the default. Type `/` or press + to use a skill. Attach images, PDFs and other files with the paperclip, by dropping them, or by pasting.
 
 On a task page, the status card says where the task is and whether it needs an answer or an approval from you. Activity is the full timeline, which can be replayed to any step; Changes shows a repository task's diff; Files previews what the task wrote.
 
@@ -124,6 +125,7 @@ Shortcuts: `/` skills and actions, `⌘N` new task, `⌘K` search, `⌘,` settin
 warren run "Summarise this week's Bun releases"                  # start a task and follow it
 warren run --repo ~/code/app "Fix the failing date tests, commit and publish the branch"
 warren run --network --repo ~/Documents/notes --output ~/Desktop "Turn these notes into one summary"
+warren run --file screenshot.png --file contract.pdf "Does the contract match the quote in the screenshot?"
 warren tasks [--all]            # tasks in progress (or all)
 warren follow <id>              # follow a task
 warren answer <id> "<answer>"   # answer a task's question

@@ -40,6 +40,13 @@ import {
   timeline,
 } from "../model.ts";
 import { Activity } from "./Activity.tsx";
+import {
+  AttachButton,
+  DropHint,
+  PendingFiles,
+  useAttachments,
+  useDropZone,
+} from "./Attachments.tsx";
 import { Changes } from "./Changes.tsx";
 import { Files, Location } from "./Files.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -176,6 +183,7 @@ export function TaskView({
           />
         ) : (
           <Activity
+            taskId={id}
             entries={entries}
             onFile={
               hasRepo
@@ -591,37 +599,45 @@ function AttentionForm(props: { taskId: string; item: Task["attention"][number] 
 function Composer({ task }: { task: Task }) {
   const { t } = useI18n();
   const [text, setText] = useState("");
+  const attach = useAttachments();
+  const drop = useDropZone(attach.add);
   const send = useMutation({
-    mutationFn: () => api.send(task.id, text),
-    onSuccess: () => setText(""),
+    mutationFn: () => api.send(task.id, text, attach.ids),
+    onSuccess: () => {
+      setText("");
+      attach.clear();
+    },
   });
+  const ready =
+    (text.trim().length > 0 || attach.ids.length > 0) && !attach.busy && !send.isPending;
   const submit = () => {
-    if (text.trim() && !send.isPending) send.mutate();
+    if (ready) send.mutate();
   };
   const enter = useEnterToSend<HTMLTextAreaElement>(submit);
   if (task.status === "ended") return <p className="composer-closed">{t("composer.ended")}</p>;
   return (
     <form
-      className="composer"
+      className={`composer ${drop.over ? "dropping" : ""}`}
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
+      {...drop.props}
     >
+      {drop.over && <DropHint />}
+      {attach.picker}
+      <PendingFiles files={attach.files} onRemove={attach.remove} />
+      <AttachButton onClick={attach.pick} />
       <textarea
         rows={1}
         value={text}
         onChange={(e) => setText(e.target.value)}
         {...enter}
+        onPaste={attach.onPaste}
         placeholder={task.status === "idle" ? t("composer.reply") : t("composer.add")}
       />
       <span className="composer-hint">{t("composer.hint")}</span>
-      <button
-        type="submit"
-        className="send"
-        disabled={!text.trim() || send.isPending}
-        title={t("composer.send")}
-      >
+      <button type="submit" className="send" disabled={!ready} title={t("composer.send")}>
         <ArrowUp size={16} />
       </button>
       {send.error && <p className="form-error">{send.error.message}</p>}

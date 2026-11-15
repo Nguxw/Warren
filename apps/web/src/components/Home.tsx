@@ -21,6 +21,7 @@ import {
   Globe,
   Logo,
   Package,
+  Paperclip,
   Plug,
   Plus,
   Sparkle,
@@ -28,6 +29,13 @@ import {
 } from "../icons.tsx";
 import { useEnterToSend } from "../keys.ts";
 import { matchesQuery, slashQuery } from "../model.ts";
+import {
+  AttachButton,
+  DropHint,
+  PendingFiles,
+  useAttachments,
+  useDropZone,
+} from "./Attachments.tsx";
 import { type Command, CommandMenu } from "./CommandMenu.tsx";
 import { Menu } from "./Menu.tsx";
 
@@ -182,6 +190,8 @@ function TaskComposer(props: {
   const [slash, setSlash] = useState<{ start: number; query: string }>();
   const [active, setActive] = useState(0);
   const [tip, setTip] = useState<MessageKey>();
+  const attach = useAttachments();
+  const drop = useDropZone(attach.add);
   const { preset, onPresetUsed } = props;
   const installed = skillList.data?.skills;
   useEffect(() => {
@@ -210,17 +220,19 @@ function TaskComposer(props: {
         ...(output && { outputDir: output }),
         ...(skills.length > 0 && { skills }),
         ...(serverChoice && { mcpServers: serverChoice.filter((n) => servers.includes(n)) }),
+        ...(attach.ids.length > 0 && { attachments: attach.ids }),
       }),
     onSuccess: (task) => {
       if (output) saveOutputDir(output);
       props.onText("");
+      attach.clear();
       setSkills([]);
       setTip(undefined);
       client.invalidateQueries({ queryKey: ["tasks"] });
       props.onCreated(task.id);
     },
   });
-  const ready = props.text.trim().length > 0 && !create.isPending;
+  const ready = props.text.trim().length > 0 && !attach.busy && !create.isPending;
   const submit = () => {
     if (ready) create.mutate();
   };
@@ -244,6 +256,14 @@ function TaskComposer(props: {
         detail: skill.description,
         run: () => setSkills((chosen) => [...chosen, skill.name]),
       })),
+    {
+      key: "attach",
+      group: t("slash.task"),
+      icon: <Paperclip size={15} />,
+      label: t("slash.attach"),
+      keywords: "file image pdf upload attach 文件 图片 上传 附件",
+      run: attach.pick,
+    },
     {
       key: "folder",
       group: t("slash.task"),
@@ -334,12 +354,15 @@ function TaskComposer(props: {
 
   return (
     <form
-      className="home-composer"
+      className={`home-composer ${drop.over ? "dropping" : ""}`}
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
+      {...drop.props}
     >
+      {drop.over && <DropHint />}
+      {attach.picker}
       {slash && (
         <CommandMenu
           commands={commands}
@@ -365,10 +388,12 @@ function TaskComposer(props: {
         onCompositionStart={enter.onCompositionStart}
         onCompositionEnd={enter.onCompositionEnd}
         onKeyDown={onKeyDown}
+        onPaste={attach.onPaste}
         placeholder={t("home.placeholder")}
         // biome-ignore lint/a11y/noAutofocus: the start page exists to take this text
         autoFocus
       />
+      <PendingFiles files={attach.files} onRemove={attach.remove} />
       {tip && (
         <p className="composer-tip">
           <Folder size={13} />
@@ -408,6 +433,7 @@ function TaskComposer(props: {
         >
           <Plus size={15} />
         </button>
+        <AttachButton onClick={attach.pick} />
         <FolderMenu
           icon={<Folder size={14} />}
           label={t("new.repo")}

@@ -1,4 +1,5 @@
-import type { ConversationItem } from "@warren/protocol";
+import type { ContentPart, ConversationItem } from "@warren/protocol";
+import { attachmentPath, fileChars } from "./attachments.ts";
 import { isSafeCut } from "./task-state.ts";
 
 /**
@@ -15,7 +16,9 @@ export function estimateTokens(items: readonly ConversationItem[]): number {
     switch (item.type) {
       case "message":
       case "tool_result":
-        for (const part of item.content) chars += part.text.length;
+        for (const part of item.content) {
+          chars += part.type === "text" ? part.text.length : fileChars(part);
+        }
         break;
       case "tool_call":
         chars += item.name.length + item.arguments.length;
@@ -54,23 +57,26 @@ export function planCompaction(
 const MAX_RESULT = 1500;
 const MAX_ARGS = 600;
 
+/** Content as plain text, with each file named by where the model finds it. */
+function plain(parts: readonly ContentPart[]): string {
+  return parts
+    .map((p) => (p.type === "text" ? p.text : `[attached file ${attachmentPath(p)}]`))
+    .join("\n");
+}
+
 /** The conversation as plain text for the summarising model; long outputs are shortened. */
 export function transcript(items: readonly ConversationItem[]): string {
   const lines: string[] = [];
   for (const item of items) {
     switch (item.type) {
       case "message":
-        lines.push(
-          `${item.role === "user" ? "USER" : "AGENT"}: ${item.content.map((p) => p.text).join("\n")}`,
-        );
+        lines.push(`${item.role === "user" ? "USER" : "AGENT"}: ${plain(item.content)}`);
         break;
       case "tool_call":
         lines.push(`TOOL CALL ${item.name} ${clip(item.arguments, MAX_ARGS)}`);
         break;
       case "tool_result":
-        lines.push(
-          `RESULT (${item.outcome}): ${clip(item.content.map((p) => p.text).join("\n"), MAX_RESULT)}`,
-        );
+        lines.push(`RESULT (${item.outcome}): ${clip(plain(item.content), MAX_RESULT)}`);
         break;
       case "reasoning":
         if (item.summary) lines.push(`AGENT THOUGHT: ${clip(item.summary, MAX_RESULT)}`);

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { basename } from "node:path";
 import { warrenPaths } from "@warren/daemon";
 import { DaemonInfo, type TaskEvent } from "@warren/protocol";
 
@@ -40,6 +41,31 @@ export class DaemonClient {
     const json = (await res.json()) as T & { error?: string };
     if (!res.ok) throw new CliError(json.error ?? `HTTP ${res.status}`);
     return json;
+  }
+
+  /** Uploads local files to attach to a task or message; returns their upload ids. */
+  async upload(paths: readonly string[]): Promise<string[]> {
+    const ids: string[] = [];
+    for (const path of paths) {
+      if (!existsSync(path)) throw new CliError(`no file ${path}`);
+      const form = new FormData();
+      form.append("file", Bun.file(path), basename(path));
+      let res: Response;
+      try {
+        res = await fetch(`${this.baseUrl}/uploads`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${this.token}` },
+          body: form,
+        });
+      } catch {
+        throw new CliError(NOT_RUNNING);
+      }
+      const json = (await res.json()) as { uploads?: { id: string }[]; error?: string };
+      const id = json.uploads?.[0]?.id;
+      if (!res.ok || !id) throw new CliError(json.error ?? `HTTP ${res.status}`);
+      ids.push(id);
+    }
+    return ids;
   }
 
   /** Yields a task's events after `afterSeq`, then live ones, until the caller stops. */

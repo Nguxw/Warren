@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { Budget } from "./grant.ts";
 
+/** Files one message may carry. */
+export const MAX_ATTACHMENTS = 20;
+/** The largest file that can be uploaded, in bytes. */
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
 /**
  * The daemon's HTTP API contract, shared by the CLI and the UI.
  * Breaking changes to these shapes need a new route, not an edit.
@@ -46,11 +51,29 @@ export const CreateTaskRequest = z.object({
   /** Whether the task's commands may reach the network; default from the config (off). */
   network: z.boolean().optional(),
   budget: Budget.optional(),
+  /** Files uploaded with `POST /uploads`, by id, to attach to the instruction. */
+  attachments: z.array(z.string()).max(MAX_ATTACHMENTS).optional(),
 });
 export type CreateTaskRequest = z.infer<typeof CreateTaskRequest>;
 
-export const SendInputRequest = z.object({ text: z.string().min(1) });
+/** A message for a task: text, files uploaded with `POST /uploads`, or both. */
+export const SendInputRequest = z
+  .object({
+    text: z.string(),
+    attachments: z.array(z.string()).max(MAX_ATTACHMENTS).optional(),
+  })
+  .refine((r) => r.text.trim().length > 0 || (r.attachments?.length ?? 0) > 0, {
+    message: "a message needs text or a file",
+  });
 export type SendInputRequest = z.infer<typeof SendInputRequest>;
+
+/** A file uploaded and waiting to be attached to a task or a message. */
+export interface Upload {
+  id: string;
+  name: string;
+  mediaType: string;
+  size: number;
+}
 
 export const ResolveAttentionRequest = z.object({
   response: z.string(),

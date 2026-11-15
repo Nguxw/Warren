@@ -1,3 +1,4 @@
+import { textOf } from "@warren/protocol";
 import { z } from "zod";
 import type { ModelClient, Tool } from "../ports.ts";
 import { reply, toolCall } from "./index.ts";
@@ -33,7 +34,7 @@ export function pushPolicyModel(): ModelClient {
           last = {
             name: names.get(item.callId) ?? "?",
             outcome: item.outcome,
-            text: item.content.map((part) => part.text).join(""),
+            text: textOf(item.content),
           };
         }
       }

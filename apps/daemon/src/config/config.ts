@@ -22,6 +22,11 @@ const common = {
       output: z.number().nonnegative(),
     })
     .optional(),
+  /**
+   * Kinds of attached file the model takes in directly. OpenAI and Anthropic models take images
+   * and PDFs; compatible endpoints none unless listed, since many models there read only text.
+   */
+  inputs: z.array(z.enum(["image", "pdf"])).optional(),
   /** Name of the secret holding the API key, such as WARREN_DEEPSEEK_API_KEY. */
   apiKeySecret: z
     .string()

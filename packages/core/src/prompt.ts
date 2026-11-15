@@ -44,11 +44,18 @@ function skillsSection(skills: readonly SkillSummary[], chosen: readonly string[
   return `\n\nSkills: instructions and files for kinds of work. When the task matches one, call load_skill with its name before you start, and follow it.${required}\n${list}`;
 }
 
+/** Where the person's files are, once there are any; until then the prompt does not change. */
+function attachmentsSection(state: TaskState, scratch: string | undefined): string {
+  if (state.attachments.length === 0 || !scratch) return "";
+  return `\n\nFiles the user attached are copied to ${scratch}/attachments/. Messages name them by their path there; work on them with the shell, and copy any you change into the workspace.`;
+}
+
 export function systemPrompt(
   state: TaskState,
   workspace: string,
   model?: { provider: string; model: string },
   skills: readonly SkillSummary[] = [],
+  scratch?: string,
 ): string {
   const { grant } = state;
   const identity = model
@@ -73,5 +80,5 @@ How to work:
 - A question you can answer from what you know needs no tools: answer it in complete_task right away.
 - If you cannot go on without a decision only the user can make, call ask_user with one concrete question. Do not ask about things you can find out yourself.
 - Report honestly. A partial result is reported as partial, a failure as a failure.
-- Keep messages short.${privileged(state)}${skillsSection(skills, state.skills)}`;
+- Keep messages short.${privileged(state)}${attachmentsSection(state, scratch)}${skillsSection(skills, state.skills)}`;
 }

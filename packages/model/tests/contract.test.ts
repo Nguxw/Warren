@@ -42,7 +42,12 @@ interface Fixture {
   /** The text of the tool result the adapter sent last, read from its own wire format. */
   sentToolResult(body: Record<string, unknown>): string | undefined;
   sentInstructions(body: Record<string, unknown>): string | undefined;
+  /** The files sent with the first message, as kind and base64, read from its wire format. */
+  sentFiles(body: Record<string, unknown>): { kind: string; data: string }[];
 }
+
+/** The base64 data of a `data:` URL. */
+const payload = (url: string) => url.slice(url.indexOf(",") + 1);
 
 const usage = { input: 1200, cached: 1000, output: 80 };
 
@@ -81,6 +86,17 @@ const fixtures: Fixture[] = [
         (item) => item.type === "function_call_output",
       )?.output,
     sentInstructions: (body) => body.instructions as string,
+    sentFiles: (body) =>
+      (
+        (body.input as { content: { type: string; image_url?: string; file_data?: string }[] }[])[0]
+          ?.content ?? []
+      ).flatMap((part) =>
+        part.type === "input_image"
+          ? [{ kind: "image", data: payload(part.image_url ?? "") }]
+          : part.type === "input_file"
+            ? [{ kind: "pdf", data: payload(part.file_data ?? "") }]
+            : [],
+      ),
   },
   {
     name: "openai-compatible",
@@ -122,6 +138,25 @@ const fixtures: Fixture[] = [
     sentInstructions: (body) =>
       (body.messages as { role: string; content: string }[]).find((m) => m.role === "system")
         ?.content,
+    sentFiles: (body) => {
+      const user = (body.messages as { role: string; content: unknown }[]).find(
+        (m) => m.role === "user",
+      );
+      const parts = Array.isArray(user?.content)
+        ? (user.content as {
+            type: string;
+            image_url?: { url: string };
+            file?: { file_data: string };
+          }[])
+        : [];
+      return parts.flatMap((part) =>
+        part.type === "image_url"
+          ? [{ kind: "image", data: payload(part.image_url?.url ?? "") }]
+          : part.type === "file"
+            ? [{ kind: "pdf", data: payload(part.file?.file_data ?? "") }]
+            : [],
+      );
+    },
   },
   {
     name: "anthropic",
@@ -160,6 +195,15 @@ const fixtures: Fixture[] = [
         ?.content;
     },
     sentInstructions: (body) => body.system as string,
+    sentFiles: (body) =>
+      (
+        (body.messages as { content: { type: string; source?: { data: string } }[] }[])[0]
+          ?.content ?? []
+      ).flatMap((block) =>
+        block.type === "image" || block.type === "document"
+          ? [{ kind: block.type === "image" ? "image" : "pdf", data: block.source?.data ?? "" }]
+          : [],
+      ),
   },
 ];
 
@@ -184,6 +228,36 @@ for (const fixture of fixtures) {
       expect(lastRequest?.path).toBe(fixture.path);
       expect(fixture.sentInstructions(lastRequest?.body ?? {})).toBe("Be brief.");
       expect(fixture.sentToolResult(lastRequest?.body ?? {})).toBe("ABC");
+    });
+
+    test("sends the files it is given bytes for, and leaves out the others", async () => {
+      next = { status: 200, body: fixture.text("ok") };
+      const image = new Uint8Array([1, 2, 3]);
+      const pdf = new Uint8Array([4, 5, 6]);
+      await client().complete({
+        ...request,
+        items: [
+          {
+            type: "message",
+            role: "user",
+            content: [
+              { type: "text", text: "Look at these" },
+              { type: "file", name: "a.png", mediaType: "image/png", size: 3 },
+              { type: "file", name: "b.pdf", mediaType: "application/pdf", size: 3 },
+              { type: "file", name: "c.docx", mediaType: "application/msword", size: 9 },
+            ],
+          },
+        ],
+        files: new Map([
+          ["a.png", image],
+          ["b.pdf", pdf],
+        ]),
+      });
+      expect(fixture.sentFiles(lastRequest?.body ?? {})).toEqual([
+        { kind: "image", data: Buffer.from(image).toString("base64") },
+        { kind: "pdf", data: Buffer.from(pdf).toString("base64") },
+      ]);
+      expect(JSON.stringify(lastRequest?.body)).toContain("Look at these");
     });
 
     test("returns tool calls with their raw arguments and usage", async () => {

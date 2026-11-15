@@ -1,13 +1,15 @@
-import type {
-  ConversationItem,
-  Grant,
-  TaskEndOutcome,
-  TaskEvent,
-  TaskStatus,
-  ToolCallItem,
-  ToolEffect,
-  TriggerRef,
-  UserMessageItem,
+import {
+  type ConversationItem,
+  type FilePart,
+  filesOf,
+  type Grant,
+  type TaskEndOutcome,
+  type TaskEvent,
+  type TaskStatus,
+  type ToolCallItem,
+  type ToolEffect,
+  type TriggerRef,
+  type UserMessageItem,
 } from "@warren/protocol";
 
 /**
@@ -73,6 +75,8 @@ export interface TaskState {
   outputDir?: string;
   /** Skills the person chose for the task. */
   skills: string[];
+  /** Files attached to the instruction and to later messages, oldest first. */
+  attachments: FilePart[];
   /** Times the task's files were saved out of its workspace, oldest first. */
   exports: { destination: string; files: number; at: number }[];
   usage: UsageTotals;
@@ -103,7 +107,8 @@ export function foldEvents(events: Iterable<TaskEvent>): TaskState {
 export function createState(event: TaskEvent): TaskState {
   if (event.type !== "task.created") fail(event, "a log must start with task.created");
   if (event.seq !== 0) fail(event, "task.created must have seq 0");
-  const { title, instruction, grant, trigger, modelRole, follows, outputDir, skills } = event.data;
+  const { title, instruction, grant, trigger, modelRole, follows, outputDir, skills, attachments } =
+    event.data;
   return {
     id: event.taskId,
     title,
@@ -114,11 +119,18 @@ export function createState(event: TaskEvent): TaskState {
     follows: follows ?? [],
     ...(outputDir !== undefined && { outputDir }),
     skills: skills ?? [],
+    attachments: [...(attachments ?? [])],
     exports: [],
     createdAt: event.at,
     updatedAt: event.at,
     lastSeq: 0,
-    history: [{ type: "message", role: "user", content: [{ type: "text", text: instruction }] }],
+    history: [
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: instruction }, ...(attachments ?? [])],
+      },
+    ],
     pendingCalls: [],
     running: [],
     queuedInputs: [],
@@ -151,6 +163,7 @@ export function applyEvent(state: TaskState, event: TaskEvent): void {
       break;
 
     case "input.received":
+      state.attachments.push(...filesOf(event.data.item.content));
       if (state.pendingCalls.length > 0) state.queuedInputs.push(event.data.item);
       else state.history.push(event.data.item);
       break;

@@ -4,9 +4,11 @@ import OpenAI from "openai";
 import type {
   Response,
   ResponseCreateParamsNonStreaming,
+  ResponseInputContent,
   ResponseInputItem,
 } from "openai/resources/responses/responses";
 import { classifyError } from "./errors.ts";
+import { dataUrl, type Files, joinText, sentFile } from "./files.ts";
 
 /**
  * OpenAI Responses API adapter.
@@ -62,7 +64,7 @@ export function toRequestBody(request: ModelRequest): ResponseCreateParamsNonStr
   return {
     model: request.model,
     instructions: request.instructions,
-    input: toInput(request.items),
+    input: toInput(request.items, request.files),
     tools: request.tools.map((tool) => ({
       type: "function",
       name: tool.name,
@@ -85,7 +87,7 @@ export function toRequestBody(request: ModelRequest): ResponseCreateParamsNonStr
   };
 }
 
-export function toInput(items: readonly ConversationItem[]): ResponseInputItem[] {
+export function toInput(items: readonly ConversationItem[], files?: Files): ResponseInputItem[] {
   const input: ResponseInputItem[] = [];
   for (const item of items) {
     switch (item.type) {
@@ -94,7 +96,14 @@ export function toInput(items: readonly ConversationItem[]): ResponseInputItem[]
           input.push({
             type: "message",
             role: "user",
-            content: item.content.map((part) => ({ type: "input_text", text: part.text })),
+            content: item.content.flatMap((part): ResponseInputContent[] => {
+              if (part.type === "text") return [{ type: "input_text", text: part.text }];
+              const file = sentFile(part, files);
+              if (!file) return [];
+              return file.mediaType === "application/pdf"
+                ? [{ type: "input_file", filename: file.name, file_data: dataUrl(file) }]
+                : [{ type: "input_image", image_url: dataUrl(file), detail: "auto" }];
+            }),
           });
         } else {
           input.push({ role: "assistant", content: joinText(item.content) });
@@ -198,8 +207,4 @@ function stopReason(response: Response, items: ModelOutputItem[]): StopReason {
     return "other";
   }
   return "end_turn";
-}
-
-function joinText(parts: readonly { text: string }[]): string {
-  return parts.map((part) => part.text).join("\n");
 }

@@ -24,6 +24,7 @@ import {
   type StepCategory,
   type ToolEntry,
 } from "../model.ts";
+import { MessageFiles } from "./Attachments.tsx";
 import { Markdown } from "./Markdown.tsx";
 
 const CATEGORY_ICON: Record<StepCategory, (p: { size?: number }) => ReactNode> = {
@@ -36,9 +37,11 @@ const CATEGORY_ICON: Record<StepCategory, (p: { size?: number }) => ReactNode> =
 const ORDER: StepCategory[] = ["inspect", "edit", "run", "publish", "other"];
 
 export function Activity({
+  taskId,
   entries,
   onFile,
 }: {
+  taskId: string;
   entries: KeyedEntry[];
   /** Opens a workspace file that a message links to. */
   onFile?: (path: string) => void;
@@ -53,7 +56,7 @@ export function Activity({
           {block.kind === "steps" ? (
             <Steps block={block} />
           ) : (
-            <EntryView entry={block.entry} onFile={onFile} />
+            <EntryView taskId={taskId} entry={block.entry} onFile={onFile} />
           )}
         </li>
       ))}
@@ -136,9 +139,11 @@ function ToolRow({ tool }: { tool: ToolEntry }) {
 }
 
 function EntryView({
+  taskId,
   entry,
   onFile,
 }: {
+  taskId: string;
   entry: KeyedEntry;
   onFile: ((path: string) => void) | undefined;
 }): ReactNode {
@@ -150,12 +155,14 @@ function EntryView({
         <figure className="instruction" title={time}>
           <figcaption>{t("who.task")}</figcaption>
           <p>{entry.text}</p>
+          <MessageFiles taskId={taskId} files={entry.files} />
         </figure>
       );
     case "user":
       return (
         <div className="message from-user" title={time}>
-          <p>{entry.text}</p>
+          {entry.text && <p>{entry.text}</p>}
+          <MessageFiles taskId={taskId} files={entry.files} />
         </div>
       );
     case "assistant":

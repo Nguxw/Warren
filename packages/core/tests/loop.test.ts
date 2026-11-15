@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { textOf } from "@warren/protocol";
 import { z } from "zod";
 import { INTERRUPTED_EXTERNAL, ModelError, nextStep, runTask, withCost } from "../src/index.ts";
 import {
@@ -107,7 +108,7 @@ describe("runTask", () => {
       "error",
       "error",
     ]);
-    const texts = results.map((r) => (r.type === "tool_result" ? r.content[0]?.text : ""));
+    const texts = results.map((r) => (r.type === "tool_result" ? textOf(r.content) : ""));
     expect(texts[0]).toContain('Unknown tool "delete_everything"');
     expect(texts[1]).toContain("not valid JSON");
     expect(texts[2]).toContain("Invalid arguments for read_file");

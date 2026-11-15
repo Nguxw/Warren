@@ -1,4 +1,10 @@
-import type { TaskEvent, TaskSummary, TriggerRecord } from "@warren/protocol";
+import {
+  filesOf,
+  type TaskEvent,
+  type TaskSummary,
+  type TriggerRecord,
+  textOf,
+} from "@warren/protocol";
 
 const tty = process.stdout.isTTY && !process.env.NO_COLOR;
 const paint = (code: number) => (text: string) => (tty ? `\x1b[${code}m${text}\x1b[0m` : text);
@@ -37,12 +43,17 @@ export function renderEvent(event: TaskEvent): string | undefined {
     case "task.created":
       return `${bold(`▶ ${event.data.title}`)} ${dim(`(${shortId(event.taskId)})`)}`;
     case "input.received":
-      return `${cyan("you")}  ${event.data.item.content.map((p) => p.text).join("\n")}`;
+      return `${cyan("you")}  ${[
+        textOf(event.data.item.content),
+        ...filesOf(event.data.item.content).map((f) => dim(`📎 ${f.name}`)),
+      ]
+        .filter(Boolean)
+        .join("\n")}`;
     case "model.responded": {
       const lines: string[] = [];
       for (const item of event.data.items) {
         if (item.type === "message") {
-          lines.push(`${green("warren")}  ${item.content.map((p) => p.text).join("\n")}`);
+          lines.push(`${green("warren")}  ${textOf(item.content)}`);
         } else if (item.type === "tool_call") {
           if (item.name === "complete_task" || item.name === "ask_user") continue;
           lines.push(dim(`  → ${item.name} ${clip(item.arguments, 110)}`));
@@ -57,7 +68,7 @@ export function renderEvent(event: TaskEvent): string | undefined {
     case "tool.started":
       return undefined;
     case "tool.finished": {
-      const text = event.data.content.map((p) => p.text).join("\n");
+      const text = textOf(event.data.content);
       if (text === "Task completed.") return undefined;
       const mark = event.data.outcome === "ok" ? dim("←") : red(`← ${event.data.outcome}`);
       const [head = "", ...rest] = firstLines(text, 4).split("\n");

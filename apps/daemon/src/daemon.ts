@@ -17,6 +17,7 @@ import { type Config, loadConfig } from "./config/config.ts";
 import { loadSecrets } from "./config/secrets.ts";
 import { Settings } from "./config/settings.ts";
 import { warrenPaths } from "./paths.ts";
+import { Attachments } from "./runtime/attachments.ts";
 import { AutomationRunner } from "./runtime/automations.ts";
 import { workspaceDiff } from "./runtime/diff.ts";
 import { GitHubRuntime } from "./runtime/github.ts";
@@ -124,6 +125,13 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
   });
   const triggers = new TriggerStore(db);
   const workspaces = new Workspaces(paths.tasks);
+  const attachments = new Attachments({
+    uploads: paths.uploads,
+    taskDir: (id) => workspaces.dirOf(id),
+    scratchOf: (id) => workspaces.scratchOf(id),
+  });
+  attachments.sweep();
+  const sweeper = setInterval(() => attachments.sweep(), 60 * 60_000);
   const scheduler = new Scheduler({
     store,
     workspaces,
@@ -135,6 +143,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       // Each task sees the tools of the MCP servers its Grant names.
       moreTools: (state) => mcp.tools(state.grant.mcpServers ?? []),
       skills: () => skills.enabled().map(({ name, description }) => ({ name, description })),
+      readAttachment: (id, name) => attachments.read(id, name),
       newId: () => Bun.randomUUIDv7(),
       sleep: options.sleep ?? abortableSleep,
     },
@@ -231,6 +240,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
       onConcurrency: (n) => scheduler.setConcurrency(n),
     }),
     workspaceOf: (id) => workspaces.pathOf(id),
+    attachments,
     skills,
     mcp,
     updates,
@@ -308,6 +318,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     automations,
     stop() {
       stopping ??= (async () => {
+        clearInterval(sweeper);
         automations.stop();
         updates.stop();
         await github?.stop();
