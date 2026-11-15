@@ -1,6 +1,6 @@
 {
   "name": "warren",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A long-running local agent that works in the background on your own computer",
   "homepage": "https://github.com/Nguxw/Warren#readme",
   "repository": {

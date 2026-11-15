@@ -7,7 +7,7 @@ Warren 以 GitHub Release 的形式发布：单文件的 `warren`（CLI、守护
 版本号只有一个来源：根目录 `package.json` 的 `version`。
 
 - 守护进程通过 `apps/daemon/src/version.ts` 读取它，编译时一起打进二进制。`warren --version`、`GET /health` 和设置页"关于"显示的都是它。
-- 桌面应用的 `tauri.conf.json` 和 `Cargo.toml` 也写着版本号。`bun scripts/version.ts X.Y.Z` 一次改三处。
+- 桌面应用的 `tauri.conf.json` 和 `Cargo.toml` 也写着版本号。`bun scripts/version.ts X.Y.Z` 一起改掉（含 `Cargo.lock`）。
 - 发布脚本会检查三处是否一致、tag 是否等于 `vX.Y.Z`，不一致就拒绝构建。
 
 ## 一个发行版里有什么
@@ -40,7 +40,7 @@ Warren 以 GitHub Release 的形式发布：单文件的 `warren`（CLI、守护
 ## 发布流程
 
 ```sh
-bun scripts/version.ts 0.2.0     # 改 package.json、tauri.conf.json、Cargo.toml
+bun scripts/version.ts 0.2.0     # 改 package.json、tauri.conf.json、Cargo.toml、Cargo.lock
 git commit -am "Release 0.2.0"
 git tag v0.2.0 && git push origin main v0.2.0
 ```

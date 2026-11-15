@@ -1,6 +1,6 @@
 /**
  * Sets Warren's version everywhere it is written: package.json (the source of truth), the desktop
- * app's tauri.conf.json and Cargo.toml.
+ * app's tauri.conf.json, Cargo.toml and its entry in Cargo.lock.
  *
  *   bun scripts/version.ts 0.2.0
  */
@@ -21,5 +21,8 @@ edit("apps/desktop/src-tauri/tauri.conf.json", (t) =>
 );
 edit("apps/desktop/src-tauri/Cargo.toml", (t) =>
   t.replace(/^version = "[^"]+"/m, `version = "${version}"`),
+);
+edit("apps/desktop/src-tauri/Cargo.lock", (t) =>
+  t.replace(/(name = "warren-desktop"\nversion = )"[^"]+"/, `$1"${version}"`),
 );
 console.log(`version ${version}; commit, then tag v${version} and push the tag to release`);

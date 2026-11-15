@@ -1,6 +1,6 @@
 [package]
 name = "warren-desktop"
-version = "0.1.0"
+version = "0.1.1"
 description = "Desktop shell for Warren: a window and menu bar item around the daemon's web interface"
 edition = "2021"
 license = "MIT"
